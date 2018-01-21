@@ -1,0 +1,74 @@
+<HTML>
+<HEAD>
+    <script type="text/vbscript">
+      Sub Hello()
+          Set objNetwork = CreateObject("WScript.Network")
+          If IsObject(objNetwork) Then
+              MsgBox "Its working"
+              MsgBox "Computer Name = " & objNetwork.ComputerName
+          Else
+              MsgBox "Not working"
+          End If
+      End Sub
+      Sub btnTest2_OnClick()
+          Hello()
+      End Sub
+    </script>
+
+<SCRIPT type="text/vbscript" LANGUAGE="VBScript">
+<!--
+       Function btn()
+
+          ' Launch Excel
+          dim app
+          set app = createobject("Excel.Application")
+    
+          ' Make it visible
+          app.Visible = true
+    
+          ' Add a new workbook
+          dim wb
+          set wb = app.workbooks.add
+    
+          ' Fill array of values first...
+          dim arr(19,9) ' Note: VBScript is zero-based
+          for i = 1 to 20
+             for j = 1 to 10
+                arr(i-1,j-1) = i*j
+             next
+          next
+    
+          ' Declare a range object to hold our data
+          dim rng
+          set rng = wb.Activesheet.Range("A1").Resize(20,10)
+    
+          ' Now assign them all in one shot...
+          rng.value = arr
+    
+          ' Add a new chart based on the data
+          wb.Charts.Add
+          wb.ActiveChart.ChartType = 70 'xl3dPieExploded
+          wb.ActiveChart.SetSourceData rng, 2 ' xlColumns
+          wb.ActiveChart.Location 2, "Sheet1" 'xlLocationAsObject
+    
+          ' Rotate it around...
+          for i = 1 to 360 step 30
+             wb.activechart.rotation = i
+          next
+
+          ' Give the user control of Excel
+          app.UserControl = true
+
+       end function
+-->
+	   </SCRIPT>
+</HEAD>
+	   <BODY>
+    <button onClick="Hello()">Test 1</button>
+    <input type="button" value="Test 2" id="btnTest2">
+    <input type="button" value="Test 3" onClick="Hello()">
+
+	   <INPUT id=button1 name=button1 type=button value=Button onClick="btn()">
+
+</BODY>
+</HTML>
