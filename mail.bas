@@ -98,8 +98,8 @@ Sub prepareAnswer(m_ID, mSender)
             .Attachments.Add changeReport
         End If
         .HTMLBody = createHTMLLog(m_ID)
-        .SaveAs "Drafts"
         .Display  'Or use .Send
+ '       .SaveAs "Drafts"
     End With
     Set oItem = Nothing
 End Sub

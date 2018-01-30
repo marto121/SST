@@ -37,12 +37,14 @@ Sub createInserts()
     Dim join_sql As String
     Dim join_count As String
     Dim sel_sql As String
+    Dim grp_sql As String
     Dim db As Database
     Set db = CurrentDb
     
     Set rs = db.OpenRecordset("meta_updatable_tables")
     While Not rs.EOF
         sel_sql = "select "
+        grp_sql = "group by "
     
         del_sql = "delete from " & rs!table_name & vbNewLine
         del_sql = del_sql & "where m_id=" & base_m_ID & vbNewLine
@@ -71,9 +73,14 @@ Sub createInserts()
             ElseIf dstCol = rs!parent_ID Then
                 If InStr(rs!Key, rs!parent_Code) > 0 Then
                     sel_sql = sel_sql & " parent." & rs!parent_Code & ", "
+                    grp_sql = grp_sql & " parent." & rs!parent_Code & ", "
                 Else
                     sel_sql = sel_sql & " max(iif(tab.m_id=" & base_m_ID & ", parent." & rs!parent_Code & ",null)) as old_" & rs!parent_Code & ", max(iif(tab.m_id<>" & base_m_ID & ", parent." & rs!parent_Code & ",null)) as new_" & rs!parent_Code & ", "
                     upd_sql = upd_sql & "dw_tab." & rs!parent_ID & "=new_tab." & rs!parent_ID & ", "
+                End If
+                If rs!Add_Fields <> "" Then
+                    sel_sql = sel_sql & " parent." & rs!Add_Fields & ", "
+                    grp_sql = grp_sql & " parent." & rs!Add_Fields & ", "
                 End If
                 ins_sql = ins_sql & "new_parent.ID"
             Else
@@ -95,10 +102,12 @@ Sub createInserts()
                     srcCol = "tab." & dstCol
                 End If
                 If InStr(rs!Key, dstCol) > 0 Then
+                    grp_sql = grp_sql & srcCol & ", "
                     If Right(srcCol, Len(dstCol)) = dstCol Then
                         sel_sql = sel_sql & srcCol & ", "
                     Else
-                        sel_sql = sel_sql & "(select " & srcCol & " from " & prop & " where id=" & dstCol & ") as " & dstCol & ", "
+                        sel_sql = sel_sql & srcCol & " as " & dstCol & ", "
+                        'sel_sql = sel_sql & "(select " & srcCol & " from " & prop & " where id=" & dstCol & ") as " & dstCol & ", "
                     End If
                 Else
                     sel_sql = sel_sql & " max(iif(tab.m_id=" & base_m_ID & ", " & srcCol & ",null)) as old_" & dstCol & ", max(iif(tab.m_id<>" & base_m_ID & ", " & srcCol & ",null)) as new_" & dstCol & ", "
@@ -115,7 +124,8 @@ Sub createInserts()
                 End If
             '    upd_sql = upd_sql & ", "
             Else
-                sel_sql = Left(sel_sql, Len(sel_sql) - 2) & vbNewLine
+                'sel_sql = Left(sel_sql, Len(sel_sql) - 2) & vbNewLine
+                sel_sql = sel_sql & " iif(min(m_ID)>-1,""New"","""") as Record_Status" & vbNewLine
                 ins_sql = ins_sql & vbNewLine
                 upd_sql = Left(upd_sql, Len(upd_sql) - 2) & vbNewLine
             End If
@@ -139,38 +149,39 @@ Sub createInserts()
         
         upd_sql = upd_sql & "where new_tab.m_id = [:m_ID] and dw_tab.m_id=" & base_m_ID & vbNewLine
         If rs!Key <> "" Then
-            sel_sql = sel_sql & "group by "
+ '           sel_sql = sel_sql & "group by "
             ins_sql = ins_sql & "   and not exists (select 1 from " & rs!table_name & " as dw_tab where dw_tab.m_id = " & base_m_ID & vbNewLine
             Dim keys
             keys = Split(rs!Key, ",")
             For c = 0 To UBound(keys)
                 on_sql = on_sql & IIf(c = 0, "on", "and ")
                 If Trim(keys(c)) = rs!parent_Code Then
-                    sel_sql = sel_sql & rs!parent_Code
+  '                  sel_sql = sel_sql & rs!parent_Code
                     del_sql = del_sql & " and " & rs!parent_ID & " in (select old_parent.id from (" & rs!table_name & " as new_tab" & c & " inner join " & rs!parent_table & " new_parent on new_parent.id=new_tab" & c & "." & rs!parent_ID & ") inner join " & rs!parent_table & " old_parent on new_parent." & rs!parent_Code & "=old_parent." & rs!parent_Code & " where new_tab" & c & ".m_ID=[:m_ID])" & vbNewLine
                     ins_sql = ins_sql & "   and dw_tab." & rs!parent_ID & "=new_parent.id" & vbNewLine
                     on_sql = on_sql & " dw_tab." & rs!parent_ID & "=new_parent.id" & vbNewLine
                 Else
-                    sel_sql = sel_sql & keys(c)
+  '                  sel_sql = sel_sql & keys(c)
                     del_sql = del_sql & " and " & keys(c) & " in (select new_tab" & c & "." & keys(c) & " from " & rs!table_name & " as new_tab" & c & " where new_tab" & c & ".m_id=[:m_ID])" & vbNewLine
                     ins_sql = ins_sql & "   and dw_tab." & Trim(keys(c)) & "=new_tab." & Trim(keys(c)) & vbNewLine
                     on_sql = on_sql & " dw_tab." & Trim(keys(c)) & "=new_tab." & Trim(keys(c)) & vbNewLine
                 End If
                 If c < UBound(keys) Then
-                    sel_sql = sel_sql & ", "
+'                    sel_sql = sel_sql & ", "
                 Else
                     sel_sql = sel_sql & vbNewLine
                 End If
             Next c
             ins_sql = ins_sql & ")"
         End If
+        sel_sql = sel_sql & IIf(grp_sql <> "group by ", Left(grp_sql, Len(grp_sql) - 2), "") & vbNewLine
         sel_sql = sel_sql & "having max(tab.m_id)>" & base_m_ID
         upd_sql = Replace(upd_sql, "&ON", on_sql)
 '        sel_sql = Replace(sel_sql, "&ON", on_sql)
-'        Debug.Print sel_sql
+        Debug.Print sel_sql
 '        Debug.Print del_sql
 '        Debug.Print upd_sql
-        Debug.Print ins_sql
+'        Debug.Print ins_sql
         On Error Resume Next
         db.QueryDefs.Delete "sel_" & rs!table_name
         db.QueryDefs.Delete "del_" & rs!table_name
@@ -215,3 +226,4 @@ Function getFieldType(ft) As String
         Case Else: getFieldType = "Unknown"
     End Select
 End Function
+

@@ -18,10 +18,11 @@ Sub Import(fileName, m_ID)' As String, m_ID' As Long)
         Log "Import", "Error starting Excel! Please contact Administrator", tErr, m_ID
         Exit Do
     End If
+    oExcel.DisplayAlerts = False
     Dim wb' As Workbook
     Dim sh' As Worksheet
     On Error Resume Next
-    Set wb = oExcel.Workbooks.Open(fileName)
+    Set wb = oExcel.Workbooks.Open(fileName, False)
     On Error Goto 0
     If wb is Nothing Then
         Log "Import", "File " & fileName & " not found! Please contact Administrator", tErr, m_ID
@@ -56,7 +57,7 @@ Sub Import(fileName, m_ID)' As String, m_ID' As Long)
     Rep_Date = CLng(wb.Names("Rep_Date").RefersToRange.value)
     On Error GoTo 0
     Dim priorMonthEnd
-    priorMonthEnd = Year(DateSerial(Year(Now),Month(Now),0))*100 + Month(Year(priorMonthEnd)*100 + Month(priorMonthEnd))
+    priorMonthEnd = Year(DateSerial(Year(Now),Month(Now),0))*100 + Month(DateSerial(Year(Now),Month(Now),0))
     If Rep_Date = 0 Then
         Log "Import", "No or invalid reporting date specified in the file (Name=Rep_Date). Assuming end of previous month.", tWar, m_ID
         Rep_Date = priorMonthEnd
@@ -99,6 +100,8 @@ Sub Import(fileName, m_ID)' As String, m_ID' As Long)
 '                                lookup = m_ID & ":" & lookup
 '                            End If
                             value = codeLists(dstTable.codeLists(key & "&"))(lookup)
+                        ElseIf dstTable.key(key) = 99 Then ' Special case for Rep_Date
+                            value = DateSerial(Left(Rep_Date, 4), Right(Rep_Date, 2) + 1, 0)
                         Else
                             value = Trim(sh.Cells(r, dstTable.key(key)).value)
                         End If
@@ -203,9 +206,9 @@ Sub Import(fileName, m_ID)' As String, m_ID' As Long)
                                 End If
                         End If
                     Next' col
-                    If tbl = "NPE_History" Or tbl = "Asset_History" Then
-                        rs.fields("Rep_Date") = DateSerial(Left(Rep_Date, 4), Right(Rep_Date, 2), 0)
-                    End If
+'                    If tbl = "NPE_History" Or tbl = "Asset_History" Then
+'                        rs.fields("Rep_Date") = DateSerial(Left(Rep_Date, 4), Right(Rep_Date, 2)+1, 0)
+'                    End If
                     rs.Update
                     rs.Close
                 Next' tbl

@@ -114,10 +114,10 @@ Function printCells(rsData, sh)
                         If rsData.fields(f - 1).value = "New" Then
                             sh.Rows(r).Interior.Color = RGB(193, 245, 255) 'blue
                         ElseIf changed Then
-                            sh.Rows(r).Interior.Color = RGB(255, 204, 102)
+                            'sh.Rows(r).Interior.Color = RGB(255, 204, 102)
                         Else
                             'sh.Cells(r, fc).value = "Confirmed"
-                            sh.Rows(r).Interior.Color = RGB(204, 255, 204)
+                            'sh.Rows(r).Interior.Color = RGB(204, 255, 204)
                         End If
                     End If
                     fc = fc + 1
