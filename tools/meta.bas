@@ -1,4 +1,4 @@
-'Option Compare Database
+Option Compare Database
 Option Explicit
 Const base_m_ID = -1
 
@@ -8,17 +8,129 @@ Sub printMeta()
     Dim sql As String
     Open "C:\Users\Marti\Documents\UCTAM\SST\SST.sql" For Output As #1
     For Each td In CurrentDb.TableDefs
+      If Not (td.Name Like "MSys*") Then
         sql = "CREATE TABLE " & td.Name & " (" & vbNewLine
         Dim f As Field
         For Each f In td.Fields
-            sql = sql & f.Name & " " & getFieldType(f.Type) & "(" & f.Size & ")," & vbNewLine
+            sql = sql & f.Name & " " & getFieldType(f.Type) & IIf(f.Type = dbText, "(" & f.Size & ")", "") & "," & vbNewLine
         Next f
-        sql = Left(sql, Len(sql) - 3) & vbNewLine & ")"
+        sql = Left(sql, Len(sql) - 3) & vbNewLine
+'        sql = Left(sql, Len(sql) - 3) & ");" & vbNewLine
+        sql = sql & ");" & vbNewLine
+        Debug.Print sql
+        Print #1, sql
+      End If
+    Next td
+    For Each td In CurrentDb.TableDefs
+      If Not (td.Name Like "MSys*") Then
+        sql = ""
+        Dim i As Index
+        For Each i In td.Indexes
+            If Not i.Primary And Not i.Foreign Then
+                sql = sql & "create " & IIf(i.Unique, "UNIQUE", "") & " index " & td.Name & "_" & i.Name & " on " & td.Name & "("
+                    For Each f In i.Fields
+                        sql = sql & f.Name & ","
+                    Next f
+                sql = Left(sql, Len(sql) - 1) & ");" & vbNewLine
+            End If
+        Next i
+      End If
         Debug.Print sql
         Print #1, sql
     Next td
+    For Each td In CurrentDb.TableDefs
+      If Not (td.Name Like "MSys*") Then
+        sql = ""
+        For Each i In td.Indexes
+          If i.Primary Then
+            sql = sql & "ALTER TABLE " & td.Name & " ADD constraint " & td.Name & "_" & i.Name
+            If i.Primary Then
+                sql = sql & " primary key "
+            ElseIf i.Unique Then
+                sql = sql & " unique "
+            ElseIf i.Foreign Then
+                sql = sql & " foreign key "
+                Dim rel As DAO.Relation
+            Else
+'                sql = sql & ";" & vbNewLine
+            End If
+            sql = sql & "("
+'            sql = sql & "Create index " & i.Name & " on " & td.Name & "("
+            For Each f In i.Fields
+                sql = sql & f.Name & ","
+            Next f
+            sql = Left(sql, Len(sql) - 1) & ")"
+            For Each rel In CurrentDb.Relations
+                If rel.Name = i.Name Then
+                    sql = sql & " references " & rel.Table & "("
+                    Dim rf As Field
+                    For Each rf In rel.Fields
+                        sql = sql & rf.Name & ","
+                    Next rf
+                    sql = Left(sql, Len(sql) - 1) & ")"
+                End If
+            Next rel
+            sql = sql & ";" & vbNewLine
+          End If
+        Next i
+        Debug.Print sql
+        Print #1, sql
+      End If
+    Next td
+    For Each td In CurrentDb.TableDefs
+      If Not (td.Name Like "MSys*") Then
+        sql = ""
+        For Each i In td.Indexes
+          If i.Foreign Then
+            sql = sql & "ALTER TABLE " & td.Name & " ADD constraint " & i.Name
+            If i.Primary Then
+                sql = sql & " primary key "
+            ElseIf i.Unique Then
+                sql = sql & " unique "
+            ElseIf i.Foreign Then
+                sql = sql & " foreign key "
+            Else
+'                sql = sql & ";" & vbNewLine
+            End If
+            sql = sql & "("
+'            sql = sql & "Create index " & i.Name & " on " & td.Name & "("
+            For Each f In i.Fields
+                sql = sql & f.Name & ","
+            Next f
+            sql = Left(sql, Len(sql) - 1) & ")"
+            For Each rel In CurrentDb.Relations
+                If rel.Name = i.Name Then
+                    sql = sql & " references " & rel.Table & "("
+                    For Each rf In rel.Fields
+                        sql = sql & rf.Name & ","
+                    Next rf
+                    sql = Left(sql, Len(sql) - 1) & ")"
+                End If
+            Next rel
+            sql = sql & ";" & vbNewLine
+          End If
+        Next i
+        Debug.Print sql
+        Print #1, sql
+      End If
+    Next td
     For Each qd In CurrentDb.QueryDefs
-        sql = "CREATE VIEW " & qd.Name & " AS " & vbNewLine & qd.sql
+        
+        sql = "CREATE"
+        If LCase(Left(qd.sql, 3)) = "del" Or LCase(Left(qd.sql, 3)) = "ins" Or LCase(Left(qd.sql, 3)) = "upd" Then
+            sql = sql & " function " & qd.Name & "( "
+            Dim p As Parameter
+            For Each p In qd.Parameters
+                sql = sql & Replace(Replace(p.Name, "[:", "p_"), "]", "") & " " & getFieldType(p.Type) & ","
+            Next p
+            sql = Left(sql, Len(sql) - 1) & ") RETURNS void LANGUAGE 'sql' AS $$" & vbNewLine
+        Else
+            sql = sql & " VIEW " & qd.Name & " AS" & vbNewLine
+        End If
+        sql = sql & Replace(Replace(Replace(qd.sql, ":", "p_"), "]", ""), "[", "") & vbNewLine
+        If LCase(Left(qd.sql, 3)) = "del" Or LCase(Left(qd.sql, 3)) = "ins" Or LCase(Left(qd.sql, 3)) = "upd" Then
+            sql = sql & "$$;" & vbNewLine
+        End If
         Debug.Print sql
         Print #1, sql
     Next qd
@@ -202,26 +314,26 @@ End Sub
 
 Function getFieldType(ft) As String
     Select Case ft
-        Case dbBigInt: getFieldType = "Big Integer"
-        Case dbBinary: getFieldType = "Binary"
-        Case dbBoolean: getFieldType = "Boolean"
-        Case dbByte: getFieldType = "Byte"
-        Case dbChar: getFieldType = "Char"
-        Case dbCurrency: getFieldType = "Currency"
-        Case dbDate: getFieldType = "Date/Time"
-        Case dbDecimal: getFieldType = "Decimal"
-        Case dbDouble: getFieldType = "Double"
-        Case dbFloat: getFieldType = "Float"
+        Case dbBigInt: getFieldType = "bigint"
+        Case dbBinary: getFieldType = "bytea"
+        Case dbBoolean: getFieldType = "boolean"
+        Case dbByte: getFieldType = "smallint"
+        Case dbChar: getFieldType = "varchar"
+        Case dbCurrency: getFieldType = "money"
+        Case dbDate: getFieldType = "date"
+        Case dbDecimal: getFieldType = "decimal"
+        Case dbDouble: getFieldType = "double precision"
+        Case dbFloat: getFieldType = "double precision"
         Case dbGUID: getFieldType = "GUID"
-        Case dbInteger: getFieldType = "Integer"
-        Case dbLong: getFieldType = "Long"
+        Case dbInteger: getFieldType = "smallint"
+        Case dbLong: getFieldType = "integer"
         Case dbLongBinary: getFieldType = "Long Binary (OLE Object)"
         Case dbMemo: getFieldType = "Memo"
-        Case dbNumeric: getFieldType = "Numeric"
-        Case dbSingle: getFieldType = "Single"
-        Case dbText: getFieldType = "Text"
-        Case dbTime: getFieldType = "Time"
-        Case dbTimeStamp: getFieldType = "Time Stamp"
+        Case dbNumeric: getFieldType = "numeric"
+        Case dbSingle: getFieldType = "real"
+        Case dbText: getFieldType = "varchar"
+        Case dbTime: getFieldType = "time"
+        Case dbTimeStamp: getFieldType = "timestamp"
         Case dbVarBinary: getFieldType = "VarBinary"
         Case Else: getFieldType = "Unknown"
     End Select
