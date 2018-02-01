@@ -1,6 +1,7 @@
 Const tLog = 0
 Const tWar = 1
 Const tErr = 2
+Const tInfo = 3
 
 Const statusReceived = 0
 Const statusProcessed = 1
@@ -11,6 +12,7 @@ Const SST_regBase = "HKCU\Software\VB and VBA Program Settings\UCTAM_SST\Constan
 Const SST_DB_Path_Reg = "SST_DB_Path"
 Const SST_Att_Path_Reg = "SST_Att_Path"
 Const SST_Att_Path_Out_Reg = "SST_Att_Path_Out"
+Const SST_Templates_Path_Reg = "SST_Templates_Path"
 Const SST_MailBox_Path_Reg = "SST_MailBox_Path"
 Const SST_Account_UserName_Reg = "SST_Account_UserName"
 Const SST_Log_Recipients_Reg = "SST_Log_Recipients"

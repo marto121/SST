@@ -44,7 +44,7 @@ Sub Import(fileName, m_ID)' As String, m_ID' As Long)
     Else
         Log "Import", "Importing data for legal entity " & Rep_LE, tLog, m_ID
     End If
-    
+    Import = Rep_LE
     Set rsTemp = dbConn.Execute("select * from vw_LE_Sender where Tagetik_Code=""" & Rep_LE & """ and id=" & m_ID)
     If rsTemp.EOF Then
         Log "Import", "You are not allowed to work with Legal Entity " & Rep_LE & ". Processing stopped", tErr, m_ID

@@ -77,7 +77,7 @@ Sub confirmMessage_old(m_ID)' As Integer)
     
 End Sub
 
-Function confirmMessage(m_ID)' As Long)' As String
+Function confirmMessage(confirm_m_ID, log_m_ID)' As Long)' As String
 
     Dim cmdData' As ADODB.Command
     Dim rst' As ADODB.Recordset
@@ -88,7 +88,7 @@ Function confirmMessage(m_ID)' As Long)' As String
     rst.Open "select * from Meta_Updatable_Tables order by ID", dbConn, adOpenForwardOnly, adLockReadOnly
         
     Set cmdData = CreateObject ("ADODB.Command")
-    cmdData.CreateParameter ":m_ID", adBigInt, adParamInput, , m_ID
+ '   cmdData.CreateParameter ":m_ID", adBigInt, adParamInput, , m_ID
     cmdData.ActiveConnection = dbConn
     cmdData.CommandType = adCmdStoredProc
     
@@ -97,21 +97,45 @@ Function confirmMessage(m_ID)' As Long)' As String
         Dim rows
         Dim tableName 
         tableName = rst.fields("table_name").Value
-        Log "confirmMessage", "Executing confirm action for " & tableName, tLog, m_ID
+        Log "confirmMessage", "Executing confirm action for " & tableName, tLog, log_m_ID
         If rst.Fields("Del_Key")="yes" Then
             cmdData.CommandText = "del_" & tableName
-            Log "confirmMessage", tableName & ": " & rows & " row(s) deleted.", tLog, m_ID
+            Log "confirmMessage", tableName & ": " & rows & " row(s) deleted.", tLog, log_m_ID
         Else
             cmdData.CommandText = "upd_" & tableName
-            cmdData.Execute rows, m_ID
-            Log "confirmMessage", tableName & ": " & rows & " row(s) updated.", tLog, m_ID
+            cmdData.Execute rows, confirm_m_ID
+            Log "confirmMessage", tableName & ": " & rows & " row(s) updated.", tLog, log_m_ID
         End If
         cmdData.CommandText = "ins_" & tableName
-        cmdData.Execute rows, m_ID
-        Log "confirmMessage", tableName & ": " & rows & " row(s) inserted.", tLog, m_ID
+        cmdData.Execute rows, confirm_m_ID
+        Log "confirmMessage", tableName & ": " & rows & " row(s) inserted.", tLog, log_m_ID
 
         rst.MoveNext
     Wend
     dbConn.CommitTrans
     confirmMessage = true
+End Function
+
+Function checkRights(m_ID)
+    if not isNumeric(m_ID) Then
+        checkRights = false
+        Exit Function
+    End if
+    Dim rs
+    set rs = CreateObject("ADODB.Recordset")
+    rs.Open "select * from vwFileRights where m_ID=" & m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
+    Dim hasRights
+    hasRights = true
+    While not rs.EOF
+        If IsNull(rs.Fields("repLE").Value) Then
+            hasRights = false
+            Dim msg
+            msg = "Sender " & rs.Fields("Sender").Value & " has no permissions to work with Legal Entity " & rs.Fields("Tagetik_Code").Value
+            msg = msg & " " & rs.Fields("LE_Name").Value & " as specified in File " & rs.Fields("fileName").Value
+            Log "checkRights", msg, tErr, m_ID
+        End If
+        rs.MoveNext
+    Wend
+    rs.Close
+    checkRights = hasRights
 End Function

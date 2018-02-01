@@ -12,6 +12,7 @@
   <reference object="ADODB.Recordset"/>
 
   <object id="dbConn" progid="ADODB.Connection"/>
+  <object id="logConn" progid="ADODB.Connection"/>
   <object id="rsLog" progid="ADODB.Recordset"/>
   <object id="fso" progid="Scripting.FileSystemObject"/>
   <object id="wshShell" progid="WScript.Shell"/>

@@ -31,14 +31,16 @@ End Sub
 
 Sub processFiles()
     Dim rsFiles
+    Dim Rep_LE
     Set rsFiles = CreateObject("ADODB.Recordset")
     rsFiles.Open "select * from File_Log where fileStatus=" & statusReceived, dbConn, adOpenForwardOnly, adLockOptimistic
     While Not rsFiles.EOF
         Dim fileName
         fileName = rsFiles.Fields("fileName").Value
         WScript.Echo Now(), "Processing fileName " & fileName
-        Import fileName, rsFiles.Fields("m_ID").Value
+        Rep_LE = Import (fileName, rsFiles.Fields("m_ID").Value)
         rsFiles.Fields("fileStatus").Value = statusProcessed
+        rsFiles.Fields("repLE").Value = Rep_LE
         rsFiles.Update
         rsFiles.moveNext
     Wend
@@ -48,12 +50,12 @@ End Sub
 Sub sendReplies()
     Dim rsMails
     Set rsMails = CreateObject("ADODB.Recordset")
-    rsMails.Open "select ID, Sender, mailStatus from Mail_Log ml where mailStatus=" & statusReceived, dbConn, adOpenForwardOnly, adLockOptimistic
+    rsMails.Open "select ID, Sender, Subject, mailStatus from Mail_Log ml where mailStatus=" & statusReceived, dbConn, adOpenForwardOnly, adLockOptimistic
     While Not rsMails.EOF
         Dim m_ID
         m_ID = rsMails.Fields("ID").Value
         WScript.Echo Now(), "Processing Mail ID " & m_ID
-        prepareAnswer m_ID, rsMails.Fields("Sender").Value
+        prepareAnswer m_ID, rsMails.Fields("Sender").Value, rsMails.Fields("Subject").Value
         WScript.Echo "Here the mailStatus should change..."
         rsMails.Fields("mailStatus").Value = statusProcessed
         rsMails.Update

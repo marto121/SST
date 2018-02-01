@@ -63,7 +63,27 @@ Sub processMail(oItem)' As MailItem)
             processAttachment oAtt, mCountry, m_ID
         End If
     Next' oAtt
-    oItem.MarkAsTask olMarkComplete
+
+    ' check for m_ID in Subject
+    Dim openBracket
+    openBracket = InStr(oItem.Subject, "{")
+    If openBracket Then
+        If InStr(openBracket, oItem.Subject, "}") Then
+            Dim old_m_ID
+            old_m_ID = right(oItem.Subject, len(oItem.Subject)-openBracket)
+            old_m_ID = left(old_m_ID, InStr(old_m_ID, "}")-1)
+            Log "processMail", "Identified subject for m_ID " & old_m_ID, tLog, m_ID
+            If checkRights(old_m_ID) Then
+                Log "processMail", "Authorisation check successfull.", tLog, m_ID
+                if LCase(left(oItem.Body,2)) = "ok" or LCase(left(oItem.Body,2)) = "ок" _
+                  or LCase(left(oItem.Body,2)) = "оk" or LCase(left(oItem.Body,2)) = "oк" Then
+                  confirmMessage old_m_ID, m_ID
+                End If
+            End If
+        End If
+    End If
+
+    'oItem.MarkAsTask olMarkComplete
     oItem.Save
     Exit Do
     Loop
@@ -72,30 +92,48 @@ Sub processMail(oItem)' As MailItem)
     Log "processMail", "End processing mail: " & oItem.Subject, tLog, m_ID
 End Sub
 
-Sub prepareAnswer(m_ID, mSender)
+Sub prepareAnswer(m_ID, mSender, mSubject)
     Dim oItem
     Set oItem = oOutlook.CreateItem(0)
     Wscript.Echo "Creating answer for message ID " & m_ID
     With oItem
-        .SendUsingAccount = oItem.Session.Accounts.Item(SST_Account_ID)
+        set .SendUsingAccount = oItem.Session.Accounts.Item(SST_Account_ID)
         .To = mSender
         .CC = SST_Log_Recipients
         .Subject = "{" & m_ID & "} SST Loading log"
         Wscript.Echo Now(), "Start Creating HTML Log"
-        Dim changeReport' As String
+        Dim attachment' As String
         Wscript.Echo Now(), "Start Creating Change Report Log"
+
+        ' Create countries list
         Dim rs
         Set rs = CreateObject("ADODB.Recordset")
+        rs.Open "select * from vw_Mail_Countries where EMail='" & mSender & "'", dbConn, adOpenForwardOnly, adLockReadOnly
+        Dim countryList
+        countryList = "'NONE'"
+        While Not rs.EOF
+            countryList = countryList & ", '" & rs.Fields("Country_Code").Value & "'"
+            rs.MoveNext
+        Wend
+        rs.Close
+        ' check for command in Subject
+        If mSubject = "reqReport" Then
+            attachment = createReport ( 1, m_ID, "where Left(NPE_Code, 2) in (" & countryList & ")" )
+            If attachment <> "" Then
+                .Attachments.Add attachment
+            End If
+        End If
+
         rs.Open "select count(*) As cnt from File_Log where m_ID =" &  m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
         If rs.Fields("cnt").Value > 0 Then
-            changeReport = createChangeReport(m_ID)
+            attachment = createChangeReport(m_ID)
         Else
-            changeReport = ""
+            attachment = ""
             Log "prepareAnswer", "No Attachments found in E-mail", tLog, m_ID
         End If
 
-        If changeReport <> "" Then
-            .Attachments.Add changeReport
+        If attachment <> "" Then
+            .Attachments.Add attachment
         End If
         .HTMLBody = createHTMLLog(m_ID)
         .Display  'Or use .Send
