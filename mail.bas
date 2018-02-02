@@ -83,7 +83,7 @@ Sub processMail(oItem)' As MailItem)
         End If
     End If
 
-    'oItem.MarkAsTask olMarkComplete
+    oItem.MarkAsTask olMarkComplete
     oItem.Save
     Exit Do
     Loop
@@ -144,7 +144,7 @@ End Sub
 
 Sub processAttachment(oAtt, mCountry, m_ID)' As Outlook.Attachment, mCountry' As String, m_ID' As Long)
     Dim fileName
-    fileName = SST_Att_Path & String(5-len(m_ID),"0") & "_" & oAtt.fileName
+    fileName = SST_Att_Path & String(5-len(m_ID),"0") & m_ID & "_" & oAtt.fileName
     oAtt.SaveAsFile fileName
     Dim rsFiles
     Set rsFiles = CreateObject("ADODB.Recordset")

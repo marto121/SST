@@ -3,7 +3,7 @@ Option Explicit
 Dim sheetTables' As Dictionary
 Dim codeLists' As Dictionary
 
-Sub Import(fileName, m_ID)' As String, m_ID' As Long)
+Function Import(fileName, m_ID)' As String, m_ID' As Long)
     'An Open connection and Log are assumed
     Dim rsCols' As ADODB.Recordset
     Dim rsTarget' As ADODB.Recordset
@@ -131,7 +131,12 @@ Sub Import(fileName, m_ID)' As String, m_ID' As Long)
                     If rs.EOF Then
                         rs.AddNew
                         For Each key In keyItems
+                            On Error resume next
                             rs.fields(key).value = keyItems(key)
+                            If Err.Number>0 Then
+                                Log "Import", Err.Text & ": key=" & key, tErr, message_ID
+                            End If
+                            On Error GoTo 0
                         Next' key
                     End If
                     For Each col In dstTable.cols
@@ -219,7 +224,7 @@ Sub Import(fileName, m_ID)' As String, m_ID' As Long)
             Wend
             Log "Import", "Sheet: " & sh.Name & " loaded. " & r & " row(s) processed", tLog, m_ID
         Else
-            Log "Import", "No definition found for sheet: " & sh.Name, tWar, m_ID
+'            Log "Import", "No definition found for sheet: " & sh.Name, tWar, m_ID
         End If
     Next' sh
     Exit Do
@@ -231,7 +236,7 @@ Sub Import(fileName, m_ID)' As String, m_ID' As Long)
         End If
         oExcel.Quit
     End If
-End Sub
+End Function
 
 Function getSheetDef(sheetName, m_ID)' As String, m_ID' As Long)' As Boolean
     Dim rsCols' As ADODB.Recordset
