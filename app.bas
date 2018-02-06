@@ -5,6 +5,7 @@ Public SST_Att_Path' As String
 Public SST_Att_Path_Out' As String
 Public SST_Templates_Path' As String
 Public SST_MailBox_Path' As String
+Public SST_MailArch_Path' As String
 Public SST_Account_UserName' As String
 Public SST_Log_Recipients
 Public SST_Account_ID' As Long
@@ -24,6 +25,8 @@ On Error Resume Next
     Wscript.Echo "SST_Templates_Path=" & SST_Templates_Path
 	SST_MailBox_Path = wshShell.RegRead ( SST_regBase & SST_MailBox_Path_Reg )
     Wscript.Echo "SST_MailBox_Path=" & SST_MailBox_Path
+	SST_MailArch_Path = wshShell.RegRead ( SST_regBase & SST_MailArch_Path_Reg )
+    Wscript.Echo "SST_MailArch_Path=" & SST_MailArch_Path
 	SST_Account_UserName = wshShell.RegRead ( SST_regBase & SST_Account_UserName_Reg )
     Wscript.Echo "SST_Account_UserName=" & SST_Account_UserName
 	SST_Log_Recipients = wshShell.RegRead ( SST_regBase & SST_Log_Recipients_Reg )

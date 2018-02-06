@@ -27,20 +27,26 @@ Sub processMail(oItem)' As MailItem)
     'fields(1) = "receiver"
     'fields(2) = "subject"
     Dim fieldvalues' As Variant
+    Dim mSubject
+    mSubject = oItem.Subject
     Set rs = CreateObject ("ADODB.Recordset")
     rs.Open "select * from Mail_Log", dbConn, adOpenForwardOnly, adLockOptimistic
-    rs.AddNew Array("sender", "receiver", "subject", "mailStatus"), Array(mSender, oItem.Recipients, oItem.Subject, statusReceived)
+    rs.AddNew Array("sender", "receiver", "subject", "mailStatus", "authStatus"), Array(mSender, oItem.Recipients, mSubject, statusReceived, authFail)
     rs.Update
     m_ID = rs.fields("ID").value
-    Log "processMail", "New mail received from: " & mSender & " with subject: " & oItem.Subject & ". Starting processing.", tLog, m_ID
+    Log "processMail", "New mail received from: " & mSender & " with subject: " & mSubject & ". Starting processing.", tLog, m_ID
     rs.Close
 
     Dim spoof_result
     spoof_result = getMailHeader(oItem,"X-MS-Exchange-Organization-AuthAs")
     If lcase(spoof_result) <> "internal" Then
-        spool_result = getMailHeader(oItem, "X-Proofpoint-SPF-Result")
+        spoof_result = getMailHeader(oItem, "X-Proofpoint-SPF-Result")
         If lcase(spoof_result) <> "pass" Then
-            Log "processMail", "Mail spoof check failed!", tErr, m_ID
+            spoof_result = getMailHeader(oItem, "Authentication-Results")
+            If InStr(spoof_result, "spf=pass") Then
+            Else
+                Log "processMail", "Mail spoof check failed!", tErr, m_ID
+            End If
         End If
     End If
 
@@ -52,6 +58,8 @@ Sub processMail(oItem)' As MailItem)
         Log "processMail", "E-Mail address: " & mSender & " is unknown for SST! Please contact the Administrator!", tErr, m_ID
         Exit Do
     End If
+
+    dbConn.Execute "update mail_log set authStatus = " & authSuccess & " where id = " & m_ID
     mCountry = rs.fields("Country_Code").value
     
     Dim oAtt' As Outlook.Attachment
@@ -66,11 +74,11 @@ Sub processMail(oItem)' As MailItem)
 
     ' check for m_ID in Subject
     Dim openBracket
-    openBracket = InStr(oItem.Subject, "{")
+    openBracket = InStr(mSubject, "{")
     If openBracket Then
-        If InStr(openBracket, oItem.Subject, "}") Then
+        If InStr(openBracket, mSubject, "}") Then
             Dim old_m_ID
-            old_m_ID = right(oItem.Subject, len(oItem.Subject)-openBracket)
+            old_m_ID = right(mSubject, len(mSubject)-openBracket)
             old_m_ID = left(old_m_ID, InStr(old_m_ID, "}")-1)
             Log "processMail", "Identified subject for m_ID " & old_m_ID, tLog, m_ID
             If checkRights(old_m_ID) Then
@@ -83,13 +91,21 @@ Sub processMail(oItem)' As MailItem)
         End If
     End If
 
-    oItem.MarkAsTask olMarkComplete
-    oItem.Save
     Exit Do
     Loop
 
+    oItem.MarkAsTask olMarkComplete
+    oItem.Save
+    Dim objMailArch
+    Set objMailArch = GetFolderPath(SST_MailArch_Path)
+    If objMailArch is Nothing Then
+        Log "processMail", "Mail Archive folder " & SST_MailArch_Path & " not found!", tErr, m_ID
+    Else
+        oItem.Move objMailArch
+    End If
+
     rs.Close
-    Log "processMail", "End processing mail: " & oItem.Subject, tLog, m_ID
+    Log "processMail", "End processing mail: " & mSubject, tLog, m_ID
 End Sub
 
 Sub prepareAnswer(m_ID, mSender, mSubject)
@@ -105,35 +121,42 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
         Dim attachment' As String
         Wscript.Echo Now(), "Start Creating Change Report Log"
 
-        ' Create countries list
         Dim rs
         Set rs = CreateObject("ADODB.Recordset")
-        rs.Open "select * from vw_Mail_Countries where EMail='" & mSender & "'", dbConn, adOpenForwardOnly, adLockReadOnly
-        Dim countryList
-        countryList = "'NONE'"
-        While Not rs.EOF
-            countryList = countryList & ", '" & rs.Fields("Country_Code").Value & "'"
-            rs.MoveNext
-        Wend
+        ' Check if authentication is successful
+        rs.Open "select authStatus from Mail_Log where ID = " & m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
+        Dim authStatus
+        authStatus = rs.Fields("authStatus").Value
         rs.Close
-        ' check for command in Subject
-        If mSubject = "reqReport" Then
-            attachment = createReport ( 1, m_ID, "where Left(NPE_Code, 2) in (" & countryList & ")" )
+        if authStatus = 1 then
+            ' Create countries list for sender
+            rs.Open "select * from vw_Mail_Countries where EMail='" & mSender & "'", dbConn, adOpenForwardOnly, adLockReadOnly
+            Dim countryList
+            countryList = "'NONE'"
+            While Not rs.EOF
+                countryList = countryList & ", '" & rs.Fields("MIS_Code").Value & "'"
+                rs.MoveNext
+            Wend
+            rs.Close
+            ' check for command in Subject
+            If mSubject = "reqReport" Then
+                attachment = createReport ( 1, m_ID, "where Left(NPE_Code, 2) in (" & countryList & ")" )
+                If attachment <> "" Then
+                    .Attachments.Add attachment
+                End If
+            End If
+
+            rs.Open "select count(*) As cnt from File_Log where m_ID =" &  m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
+            If rs.Fields("cnt").Value > 0 Then
+                attachment = createChangeReport(m_ID)
+            Else
+                attachment = ""
+                Log "prepareAnswer", "No Attachments found in E-mail", tLog, m_ID
+            End If
+
             If attachment <> "" Then
                 .Attachments.Add attachment
             End If
-        End If
-
-        rs.Open "select count(*) As cnt from File_Log where m_ID =" &  m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
-        If rs.Fields("cnt").Value > 0 Then
-            attachment = createChangeReport(m_ID)
-        Else
-            attachment = ""
-            Log "prepareAnswer", "No Attachments found in E-mail", tLog, m_ID
-        End If
-
-        If attachment <> "" Then
-            .Attachments.Add attachment
         End If
         .HTMLBody = createHTMLLog(m_ID)
         .Display  'Or use .Send

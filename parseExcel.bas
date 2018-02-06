@@ -40,7 +40,13 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
     Rep_LE = wb.Names("Rep_LE").RefersToRange.value
     On Error GoTo 0
     If Rep_LE = "All" Then
-        Log "Import", "No Legal Entity specified in the file (Name=Rep_LE). Assuming access to all Legal entities.", tWar, m_ID
+        Set rsTemp = dbConn.Execute("select Tagetik_Code from vw_LE_Sender where id=" & m_ID)
+        If not rsTemp.EOF Then
+            Rep_LE = rsTemp.Fields("Tagetik_Code").Value
+            Log "Import", "No Legal Entity specified in the file (Name=Rep_LE). Assuming data is for default LE: " & Rep_LE, tLog, m_ID
+        Else
+            Log "Import", "No Legal Entity specified in the file (Name=Rep_LE). Assuming access to all Legal entities.", tWar, m_ID
+        End If
     Else
         Log "Import", "Importing data for legal entity " & Rep_LE, tLog, m_ID
     End If
@@ -90,8 +96,13 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
                     Set keyItems = CreateObject ( "Scripting.Dictionary" )
                     keyItems.RemoveAll
                     Set dstTable = sheetTables(tbl)
+                    Dim debug
+                    debug = ""
                     For Each key In dstTable.key
-                        
+                        Dim kk
+                        for each kk in dstTable.codeLists
+                            debug = debug & " cl:" & kk &","
+                        Next
                         If key = "m_ID" Then ' Special case for message_ID, which is always part of the key
                             value = m_ID
                         ElseIf dstTable.codeLists.Exists(key & "&") Then
@@ -100,6 +111,7 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
 '                                lookup = m_ID & ":" & lookup
 '                            End If
                             value = codeLists(dstTable.codeLists(key & "&"))(lookup)
+                            debug = debug & "key: " & key & ",lkp:" & lookup & ", value: " & value &";"
                         ElseIf dstTable.key(key) = 99 Then ' Special case for Rep_Date
                             value = DateSerial(Left(Rep_Date, 4), Right(Rep_Date, 2) + 1, 0)
                         Else
@@ -126,7 +138,20 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
                     
                     Dim rs' As New ADODB.Recordset
                     Set rs = CreateObject("ADODB.Recordset")
+                    On Error Resume Next
                     rs.Open dstTable.cmd, , adOpenForwardOnly, adLockOptimistic
+                    If Err.Number<>0 Then
+                        Log "Import", "Error executing " & dstTable.cmd.CommandText, tErr, m_ID
+                        dim tmpPar
+                        dim msg
+                        msg = ""
+                        for Each tmpPar in dstTable.cmd.Parameters
+                            msg = msg & "Parameter " & tmpPar.Name & " has value " & tmpPar.Value & ", "
+                        Next 
+                        Log "Import", msg & debug, tErr, m_ID
+                        Exit Do
+                    End If
+                    On Error GoTo 0
                     
                     If rs.EOF Then
                         rs.AddNew
@@ -161,7 +186,7 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
                             If lookup <> "" Then
                                 value = codeLists(dstTable.codeLists(col))(LCase(lookup))
                                 If IsEmpty(value) And lookup <> "" Then
-                                    value = addCode(dstTable.codeLists(col), lookup)
+                                    value = addCode(dstTable.codeLists(col), lookup, m_ID)
                                 End If
                             Else
                                 value = ""
@@ -201,7 +226,7 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
                         End If
                         
                         If rs.EditMode = adEditAdd And ( _
-                            (tbl = "Assets_List" And column_name = "Asset_Code") _
+                            (tbl = "Assets_List" And column_name = "Asset_Code" And codeLists.Exists(tbl & ":" & column_name)) _
                             Or (tbl = "NPE_List" And column_name = "NPE_Code" And codeLists.Exists(tbl & ":" & column_name)) _
                             ) Then ' add manually the subasset if not existing
                                 If codeLists(tbl & ":" & column_name).Exists(LCase(value)) Then
@@ -354,7 +379,7 @@ Function getSheetDef(sheetName, m_ID)' As String, m_ID' As Long)' As Boolean
     End If
 End Function
 
-Function addCode(columns, lookup)' As String, lookup' As String)' As Long
+Function addCode(columns, lookup, m_ID)' As String, lookup' As String)' As Long
     Dim rs' As Recordset
     Dim cols, s
     cols = Split(columns, ":")
@@ -364,10 +389,17 @@ Function addCode(columns, lookup)' As String, lookup' As String)' As Long
     For s = 1 To UBound(cols)
         rs.fields(cols(s)).value = Left(Split(lookup, ":")(s - 1), rs.fields(cols(s)).DefinedSize)
     Next' s
+    On Error Resume Next
     rs.Update
-    addCode = rs.fields("ID").value
-    codeLists(columns)(LCase(lookup)) = addCode
-    rs.Close
+    On Error GoTo 0
+    If Err.Number<>0 Then
+        Log "addCode", "Error adding code for columns: " & columns & " with lookup " & lookup, tErr, m_ID
+        rs.Cancel
+    Else
+        addCode = rs.fields("ID").value
+        codeLists(columns)(LCase(lookup)) = addCode
+    End If
+'    rs.Close
 End Function
 
 

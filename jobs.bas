@@ -15,7 +15,7 @@ Sub checkMail()
     Dim objNewMailItems
     Set objNewMailItems = GetFolderPath(SST_MailBox_Path).Items
     Dim i
-    For i = 1 to objNewMailItems.Count
+    For i = objNewMailItems.Count to 1 Step -1 
         Dim oItem
         Set oItem = objNewMailItems.Item(i)
         If oItem.Class = olMail Then
