@@ -194,7 +194,10 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
                         ElseIf dstTable.cols(col) = 99 Then ' Special case for Rep_Date
                             value = DateSerial(Left(Rep_Date, 4), Right(Rep_Date, 2) + 1, 0)
                         Else
+                            On Error Resume Next
+                            value = "Error"
                             value = Trim(sh.Cells(r, dstTable.cols(col)).value)
+                            On Error GoTo 0
                         End If
                         
                         Dim condition' As String
@@ -239,7 +242,9 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
 '                    If tbl = "NPE_History" Or tbl = "Asset_History" Then
 '                        rs.fields("Rep_Date") = DateSerial(Left(Rep_Date, 4), Right(Rep_Date, 2)+1, 0)
 '                    End If
-                    rs.Update
+                    If rs.EditMode = adEditAdd or rs.EditMode = adEditInProgress Then
+                        rs.Update
+                    End If
                     rs.Close
                 Next' tbl
                 Exit Do

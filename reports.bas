@@ -184,7 +184,7 @@ Function createReport(report_id, m_ID, condition)' As Long, m_ID' As Long)' As S
 
         If templateFileName = "" then Set wb = ex.Workbooks.Add
  
-        While Not rs.EOF
+        Do While Not rs.EOF
             Set sh = Nothing    
             On Error Resume Next 'Try if sheet exists
             Set sh = wb.Sheets(rs.fields("Sheet_Name").Value)
@@ -196,7 +196,13 @@ Function createReport(report_id, m_ID, condition)' As Long, m_ID' As Long)' As S
             If rs.fields("Sheet_Query").value <> "" Then
                 Dim sql
                 sql = "select " & rs.Fields("Sheet_Columns") & " from " & rs.fields("Sheet_Query").Value & " " & condition
+                on Error Resume Next
                 rsData.Open sql, dbConn
+                If Err.Number <> 0 Then
+                    Log "createReport", "Error running SQL: " & sql, tErr, m_ID
+                    Exit Do
+                End If
+                On Error Goto 0
                 Dim f' As Integer
                 If templateFileName = "" Then ' Do not change field names if no template
                     For f = 1 To rsData.fields.Count
@@ -211,13 +217,13 @@ Function createReport(report_id, m_ID, condition)' As Long, m_ID' As Long)' As S
             End If
             
             rs.MoveNext
-        Wend
+        Loop
         Dim fileName' As String
         For f = 0 To 9999
-            fileName = wshShell.ExpandEnvironmentStrings("%TEMP%") & "\" & report_code & "_" & string(4-len(f),"0") & f & ".xlsb"
+            fileName = SST_Att_Path_Out & "\" & report_code & "_" & string(4-len(f),"0") & f & ".xlsx"
             If Not fso.FileExists(fileName) Then Exit For
         Next' f
-        wb.SaveAs fileName, 50 'xlExcel12
+        wb.SaveAs fileName', 50 'xlExcel12
         createReport = fileName
         wb.Close
         ex.Quit

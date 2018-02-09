@@ -159,7 +159,7 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
             End If
         End If
         .HTMLBody = createHTMLLog(m_ID)
-        .Display  'Or use .Send
+        .Send '.Display 'Send  'Or use .Send
  '       .SaveAs "Drafts"
     End With
     Set oItem = Nothing
