@@ -38,6 +38,7 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
     Rep_LE = "All"
     On Error Resume Next
     Rep_LE = wb.Names("Rep_LE").RefersToRange.value
+    Rep_LE = Split(Rep_LE,":")(0)
     On Error GoTo 0
     If Rep_LE = "All" Then
         Set rsTemp = dbConn.Execute("select Tagetik_Code from vw_LE_Sender where id=" & m_ID)
@@ -47,13 +48,16 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
         Else
             Log "Import", "No Legal Entity specified in the file (Name=Rep_LE). Assuming access to all Legal entities.", tWar, m_ID
         End If
+    ElseIf Rep_LE = "" Then
+        Log "Import", "No Legal entity specified in the file. Processing stopped.", tErr, m_ID
+        Exit Do
     Else
         Log "Import", "Importing data for legal entity " & Rep_LE, tLog, m_ID
     End If
     Import = Rep_LE
     Set rsTemp = dbConn.Execute("select * from vw_LE_Sender where Tagetik_Code=""" & Rep_LE & """ and id=" & m_ID)
     If rsTemp.EOF Then
-        Log "Import", "You are not allowed to work with Legal Entity " & Rep_LE & ". Processing stopped", tErr, m_ID
+        Log "Import", "You are not allowed to work with Legal Entity " & Rep_LE & ". Processing stopped.", tErr, m_ID
         Exit Do
     End If
     

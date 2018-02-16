@@ -43,9 +43,9 @@ Sub processMail(oItem)' As MailItem)
         spoof_result = getMailHeader(oItem, "X-Proofpoint-SPF-Result")
         If lcase(spoof_result) <> "pass" Then
             spoof_result = getMailHeader(oItem, "Authentication-Results")
-            If InStr(spoof_result, "spf=pass") Then
+            If InStr(spoof_result, "spf=pass") or InStr(spoof_result, "spf=neutral") Then
             Else
-                Log "processMail", "Mail spoof check failed!", tErr, m_ID
+                Log "processMail", "Mail spoof check failed!", tLog, m_ID
             End If
         End If
     End If
@@ -85,6 +85,7 @@ Sub processMail(oItem)' As MailItem)
                 Log "processMail", "Authorisation check successfull.", tLog, m_ID
                 if LCase(left(oItem.Body,2)) = "ok" or LCase(left(oItem.Body,2)) = "ок" _
                   or LCase(left(oItem.Body,2)) = "оk" or LCase(left(oItem.Body,2)) = "oк" Then
+                  Log "processMail", "Identified 'OK' command in message. Confirming data in Message ID " & old_m_ID, tLog, m_ID
                   confirmMessage old_m_ID, m_ID
                 End If
             End If
@@ -144,6 +145,8 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                 If attachment <> "" Then
                     .Attachments.Add attachment
                 End If
+            Else
+                Log "prepareAnswer", "No command found in E-mail subject", tLog, m_ID
             End If
 
             rs.Open "select count(*) As cnt from File_Log where m_ID =" &  m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
@@ -159,6 +162,7 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
             End If
         End If
         .HTMLBody = createHTMLLog(m_ID)
+        '.Display
         .Send '.Display 'Send  'Or use .Send
  '       .SaveAs "Drafts"
     End With
