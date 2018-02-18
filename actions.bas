@@ -77,42 +77,93 @@ Sub confirmMessage_old(m_ID)' As Integer)
     
 End Sub
 
-Function confirmMessage(confirm_m_ID, log_m_ID)' As Long)' As String
+Function confirmMessage(confirm_m_ID, log_m_ID, mSender)' As Long)' As String
 
     Dim cmdData' As ADODB.Command
+    Dim rsMsg
     Dim rst' As ADODB.Recordset
     Dim report_filename' As String
-    
-    Set rst = CreateObject ("ADODB.Recordset")
-'    rst.Open "select * from Meta_Updatable_Tables where table_name='NPE_List'", dbConn, adOpenForwardOnly, adLockReadOnly
-    rst.Open "select * from Meta_Updatable_Tables order by ID", dbConn, adOpenForwardOnly, adLockReadOnly
-        
-    Set cmdData = CreateObject ("ADODB.Command")
- '   cmdData.CreateParameter ":m_ID", adBigInt, adParamInput, , m_ID
-    cmdData.ActiveConnection = dbConn
-    cmdData.CommandType = adCmdStoredProc
+    Dim mailStatus
+    Dim rows
+    Dim msg
     
     dbConn.BeginTrans
-    While Not rst.EOF
-        Dim rows
-        Dim tableName 
-        tableName = rst.fields("table_name").Value
-        Log "confirmMessage", "Executing confirm action for " & tableName, tLog, log_m_ID
-        If rst.Fields("Del_Key")="yes" Then
-            cmdData.CommandText = "del_" & tableName
-            Log "confirmMessage", tableName & ": " & rows & " row(s) deleted.", tLog, log_m_ID
-        Else
-            cmdData.CommandText = "upd_" & tableName
-            cmdData.Execute rows, confirm_m_ID
-            Log "confirmMessage", tableName & ": " & rows & " row(s) updated.", tLog, log_m_ID
+    Do while true
+        Set rsMsg = CreateObject("ADODB.Recordset")
+        rsMsg.Open "select mailStatus, Sender, ID from Mail_Log where ID = " & confirm_m_ID, dbConn, adOpenForwardOnly, adLockOptimistic
+        If rsMsg.EOF Then
+            Log "confirmMessage", "Message with ID " & confirm_m_ID & " does not exist!", tErr, log_m_ID
+            Exit Do
         End If
-        cmdData.CommandText = "ins_" & tableName
-        cmdData.Execute rows, confirm_m_ID
-        Log "confirmMessage", tableName & ": " & rows & " row(s) inserted.", tLog, log_m_ID
+        mailStatus = rsMsg.Fields("mailStatus").Value
+        If mailStatus <> statusProcessed Then
+            Log "confirmMessage", "Message with ID " & confirm_m_ID & " has status " & getStatusName(mailStatus) & " and cannot be confirmed anymore.", tErr, log_m_ID
+            Exit Do
+        End If
+        If LCase(rsMsg.Fields("Sender").Value) = mSender Then
+            Log "confirmMessage", mSender & " cannot confirm messsage with ID " & confirm_m_ID & " because it was received from the same address.", tErr, log_m_ID
+            Exit Do
+        End If
 
-        rst.MoveNext
-    Wend
+        Set cmdData = CreateObject ("ADODB.Command")
+        cmdData.ActiveConnection = dbConn
+        cmdData.CommandType = adCmdStoredProc
+        cmdData.CommandText = "vw_Mail_auth_sender"
+        cmdData.Parameters.Refresh
+        
+        Set rst = CreateObject ("ADODB.Recordset")
+        Set rst = cmdData.Execute(rows, Array(mSender, confirm_m_ID))
+        If not rst.EOF Then
+            msg = "Message confirmation failed. You are not allowed to confirm the data for the following Objects: "
+            While not rst.EOF
+                msg = msg & rst.Fields("Object_Code").Value & ", "
+                rst.MoveNext
+            Wend
+            msg = left(msg, len(msg)-2) & "."
+            Log "confirmMessage", msg, tErr, log_m_ID
+            Exit Do
+        End If
+        rst.Close
+        rst.Open "select * from Meta_Updatable_Tables order by ID", dbConn, adOpenForwardOnly, adLockReadOnly
+            
+        While Not rst.EOF
+            Dim tableName 
+            tableName = rst.fields("table_name").Value
+            Log "confirmMessage", "Executing confirm action for " & tableName, tLog, log_m_ID
+            If rst.Fields("Del_Key")="yes" Then
+                cmdData.CommandText = "del_" & tableName
+                cmdData.Parameters.Refresh
+                cmdData.Execute rows, confirm_m_ID
+                Log "confirmMessage", tableName & ": " & rows & " row(s) deleted.", tLog, log_m_ID
+            Else
+                cmdData.CommandText = "upd_" & tableName
+                cmdData.Parameters.Refresh
+                cmdData.Execute rows, confirm_m_ID
+                Log "confirmMessage", tableName & ": " & rows & " row(s) updated.", tLog, log_m_ID
+            End If
+            cmdData.CommandText = "ins_" & tableName
+            cmdData.Parameters.Refresh
+            cmdData.Execute rows, confirm_m_ID
+            Log "confirmMessage", tableName & ": " & rows & " row(s) inserted.", tLog, log_m_ID
+
+            rst.MoveNext
+        Wend
+        cmdData.CommandText = "upd_old_Linked_Mails_Reject"
+        cmdData.Parameters.Refresh
+        cmdData.Execute rows, confirm_m_ID
+        If rows>0 Then
+            Log "confirmMessage", rows & " previous data mails rejected due to related data in currently confirmed message.", tLog, log_m_ID
+        End If
+
+        rsMsg.Fields("mailStatus").Value = statusConfirmed
+        rsMsg.Update
+        Exit Do
+    Loop
     dbConn.CommitTrans
+    On Error resume Next
+    rsMsg.Close
+    rst.Close
+    On Error goto 0
     confirmMessage = true
 End Function
 

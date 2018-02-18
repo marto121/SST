@@ -1,3 +1,4 @@
+<package>
 <job id="MainProg">
 
   <resource id="ADODB_Provider">Microsoft.ACE.OLEDB.12.0</resource>
@@ -34,3 +35,29 @@
 	'WScript.echo (now)
   </script>
 </job>
+
+<job id="printMeta">
+
+  <resource id="ADODB_Provider">Microsoft.ACE.OLEDB.12.0</resource>
+  <resource id="SST_regBase">HKCU\Software\VB and VBA Program Settings\UCTAM_SST\Constants\</resource>
+  <resource id="SST_DB_Path_Reg">SST_DB_Path</resource>
+  <resource id="SST_Att_Path_Reg">SST_Att_Path</resource>
+  <resource id="SST_Att_Path_Out_Reg">SST_Att_Path_Out</resource>
+  <resource id="SST_MailBox_Path_Reg">SST_MailBox_Path</resource>
+  <resource id="SST_Account_UserName_Reg">SST_Account_UserName</resource>
+
+  <reference object="Scripting.FileSystemObject"/>
+  <reference object="DAO.DBEngine.120"/>
+  <object id="fso" progid="Scripting.FileSystemObject"/>
+  <object id="wshShell" progid="WScript.Shell"/>
+
+  <script language="VBScript" src="app.bas"/>
+  <script language="VBScript" src="constants.bas"/>
+  <script language="VBScript" src="meta.bas"/>
+  <script language="VBScript">
+    Init(false)
+    createInserts()
+    printMeta()
+  </script>
+</job>
+</package>

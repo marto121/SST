@@ -50,8 +50,7 @@ Sub processMail(oItem)' As MailItem)
         End If
     End If
 
-    rs.Open "vwUserCountry", dbConn, adOpenDynamic, adLockReadOnly
-    rs.Find "EMail='" & mSender & "'"
+    rs.Open "select * from vwUserCountry where LCase(EMail)='" & mSender & "'", dbConn, adOpenDynamic, adLockReadOnly
     
     Do while true
     If rs.EOF Then
@@ -86,7 +85,7 @@ Sub processMail(oItem)' As MailItem)
                 if LCase(left(oItem.Body,2)) = "ok" or LCase(left(oItem.Body,2)) = "ок" _
                   or LCase(left(oItem.Body,2)) = "оk" or LCase(left(oItem.Body,2)) = "oк" Then
                   Log "processMail", "Identified 'OK' command in message. Confirming data in Message ID " & old_m_ID, tLog, m_ID
-                  confirmMessage old_m_ID, m_ID
+                  confirmMessage old_m_ID, m_ID, mSender
                 End If
             End If
         End If
@@ -131,7 +130,7 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
         rs.Close
         if authStatus = 1 then
             ' Create countries list for sender
-            rs.Open "select * from vw_Mail_Countries where EMail='" & mSender & "'", dbConn, adOpenForwardOnly, adLockReadOnly
+            rs.Open "select * from vw_Mail_Countries where LCase(EMail)='" & mSender & "'", dbConn, adOpenForwardOnly, adLockReadOnly
             Dim countryList
             countryList = "'NONE'"
             While Not rs.EOF
@@ -140,8 +139,18 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
             Wend
             rs.Close
             ' check for command in Subject
-            If mSubject = "reqReport" Then
-                attachment = createReport ( 1, m_ID, "where Left(NPE_Code, 2) in (" & countryList & ")" )
+            If Left(Trim(mSubject),9) = "reqReport" Then
+                Log "prepareAnswer", "Detected ""reqReport"" command. A template will be generated.", tLog, m_ID
+                Dim sel
+                sel = ""
+                If InStr(mSubject, ":") > 0 Then
+                    sel = Trim(Split(mSubject, ":")(1))
+                End If
+                If sel <> "" then
+                    Log "prepareAnswer", "Detected country selection. Only Objects of " & sel & " will be selected.", tLog, m_ID
+                    sel = " and Left(NPE_Code, 2) = '" & sel & "'"
+                End If
+                attachment = createReport ( 1, m_ID, "where Left(NPE_Code, 2) in (" & countryList & ")" & sel)
                 If attachment <> "" Then
                     .Attachments.Add attachment
                 End If
@@ -152,6 +161,20 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
             rs.Open "select count(*) As cnt from File_Log where m_ID =" &  m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
             If rs.Fields("cnt").Value > 0 Then
                 attachment = createChangeReport(m_ID)
+                Dim rsRoles
+                Set rsRoles = CreateObject("ADODB.Recordset")
+                rsRoles.Open "select * from vw_Mail_Roles where m_ID = " & m_ID, dbConn, adOpenDynamic, adLockReadOnly
+                Dim addRecipients
+                addRecipients = ""
+                While Not rsRoles.EOF
+                    If (rsRoles.Fields("Role").Value And roleConfirm) = 2 Then
+                        addRecipients = addRecipients & ";" & rsRoles.Fields("EMail").Value
+                    End If
+                    rsRoles.MoveNext
+                Wend
+                Wscript.Echo "Additional recipients: " & addRecipients
+                .To = .To & addRecipients
+                rsRoles.Close
             Else
                 attachment = ""
                 Log "prepareAnswer", "No Attachments found in E-mail", tLog, m_ID
@@ -162,8 +185,8 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
             End If
         End If
         .HTMLBody = createHTMLLog(m_ID)
-        '.Display
-        .Send '.Display 'Send  'Or use .Send
+        .Display
+        '.Send '.Display 'Send  'Or use .Send
  '       .SaveAs "Drafts"
     End With
     Set oItem = Nothing

@@ -1,0 +1,19 @@
+1. update the meta sqls
+2. Check asset status code list
+2. fix the check rights when approving mail - OK
+3. Add restriction same person not to be able to confirm - OK
+4. Disable approval of files in wrong sequence - OK
+5. Improve template
+6. Add currency conversion
+7. Add checks
+8. Insurance/Appraisal/Rental expiring
+9. Send updates also to country manager - OK
+10. Fix "text" format in template
+
+Updates in the Access:
+meta SQLs
+vw_Mail_Auth_Sender
+LCase in mail address
+vw_Mail_Objects
+Role column
+vwUserCountry - Add Role

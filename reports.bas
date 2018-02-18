@@ -212,6 +212,7 @@ Function createReport(report_id, m_ID, condition)' As Long, m_ID' As Long)' As S
                         End With
                     Next' f
                 End If
+                sh.Activate ' Necessary in order to avoid bug with format change to date in other sheets
                 sh.Cells(2, 1).CopyFromRecordset rsData
                 rsData.Close
             End If

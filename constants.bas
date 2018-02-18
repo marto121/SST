@@ -5,6 +5,29 @@ Const tInfo = 3
 
 Const statusReceived = 0
 Const statusProcessed = 1
+Const statusConfirmed = 2
+Const statusRejected = 3
+
+Const roleSend = 1
+Const roleConfirm = 2
+
+Const fsoForReading = 1
+Const fsoForWriting = 2
+
+Function getStatusName(inStatus)
+    If inStatus = statusReceived Then
+        getStatusName = "[received]"
+    ElseIf inStatus = statusProcessed Then
+        getStatusName = "[processed]"
+    ElseIf inStatus = statusConfirmed Then
+        getStatusName = "[confirmed]"
+    ElseIf inStatus = statusRejected Then
+        getStatusName = "[rejected]"
+    Else
+        getStatusName = "[unknown]"
+    End If
+End Function
+
 
 Const authFail = 0
 Const authSuccess = 1

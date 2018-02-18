@@ -256,7 +256,7 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
 'nextRow:
                 r = r + 1
             Wend
-            Log "Import", "Sheet: " & sh.Name & " loaded. " & r & " row(s) processed", tLog, m_ID
+            Log "Import", "Sheet: " & sh.Name & " loaded. " & (r-2) & " row(s) processed", tLog, m_ID
         Else
 '            Log "Import", "No definition found for sheet: " & sh.Name, tWar, m_ID
         End If
@@ -359,7 +359,13 @@ Function getSheetDef(sheetName, m_ID)' As String, m_ID' As Long)' As Boolean
                 Set codeList = CreateObject ( "Scripting.Dictionary" )
                 Dim spl, kk, s' As Integer
                 spl = Split(sheetTables(tbl).codeLists(key), ":")
-                Set rs = dbConn.Execute(spl(0))
+                Dim lookup_table
+                lookup_table = spl(0)
+                If lookup_table = "NPE_List" or lookup_table = "Assets_List" Then
+                    lookup_table = lookup_table & " where m_ID = " & m_ID
+                End If
+                lookup_table = "select * from " & lookup_table
+                Set rs = dbConn.Execute(lookup_table)
                 While Not rs.EOF
                     kk = "-"
                     For s = 1 To UBound(spl)
@@ -398,6 +404,7 @@ Function addCode(columns, lookup, m_ID)' As String, lookup' As String)' As Long
     For s = 1 To UBound(cols)
         rs.fields(cols(s)).value = Left(Split(lookup, ":")(s - 1), rs.fields(cols(s)).DefinedSize)
     Next' s
+    rs.fields("m_ID").Value = m_ID
     On Error Resume Next
     rs.Update
     On Error GoTo 0
