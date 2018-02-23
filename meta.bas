@@ -154,8 +154,12 @@ Sub printMeta()
             sql = Replace(sql, "year ", "extract(year from ")
             sql = Replace(sql, "#1/1/2000#", "'2000-1-1'")
         End If
-'        Debug.Print sql
+        on error Resume Next
         outFile.Write sql
+        If Err.Number>0 Then
+            WScript.Echo sql
+        End If
+        on error GoTo 0
     Next' qd
     outFile.Close
 End Sub
@@ -223,8 +227,10 @@ Sub createInserts()
                     upd_sql = upd_sql & "dw_tab." & rs.Fields("parent_ID") & "=new_tab." & rs.Fields("parent_ID") & ", "
                 End If
                 If rs.Fields("Add_Fields") <> "" Then
-                    sel_sql = sel_sql & " parent." & rs.Fields("Add_Fields") & ", "
-                    grp_sql = grp_sql & " parent." & rs.Fields("Add_Fields") & ", "
+                    'sel_sql = sel_sql & " parent." & rs.Fields("Add_Fields") & ", "
+                    'grp_sql = grp_sql & " parent." & rs.Fields("Add_Fields") & ", "
+                    sel_sql = sel_sql & " IIf(Max(IIf([tab].[m_id]<>-1,[parent].[" & rs.Fields("Add_Fields") & "],Null)) Is Null,Max([parent].[" & rs.Fields("Add_Fields") & "]),Max(IIf([tab].[m_id]<>-1,[parent].[" & rs.Fields("Add_Fields") & "],Null))) as " & rs.Fields("Add_Fields") & ", "
+                    'grp_sql = grp_sql & " Nz(Max(IIf([tab].[m_id]=-1,[parent].[" & rs.Fields("Add_Fields") & "],Null)),Max([parent].[" & rs.Fields("Add_Fields") & "])), "
                 End If
                 ins_sql = ins_sql & "new_parent.ID"
             Else
@@ -287,11 +293,12 @@ Sub createInserts()
         End If
         sel_sql = sel_sql & "where tab.m_id in ([:m_ID]," & base_m_ID & ")" & vbNewLine
         ins_sql = ins_sql & "where new_tab.m_id = [:m_ID]" & vbNewLine
+        upd_sql = upd_sql & "where new_tab.m_id = [:m_ID] and dw_tab.m_id=" & base_m_ID & vbNewLine
         If rs.Fields("parent_table") <> "" Then
             ins_sql = ins_sql & " and new_parent.m_id=" & base_m_ID & vbNewLine
+            upd_sql = upd_sql & " and new_parent.m_id=" & base_m_ID & vbNewLine
         End If
         
-        upd_sql = upd_sql & "where new_tab.m_id = [:m_ID] and dw_tab.m_id=" & base_m_ID & vbNewLine
         If rs.Fields("Key") <> "" Then
  '           sel_sql = sel_sql & "group by "
             ins_sql = ins_sql & "   and not exists (select 1 from " & rs.Fields("table_name") & " as dw_tab where dw_tab.m_id = " & base_m_ID & vbNewLine

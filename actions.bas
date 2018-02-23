@@ -78,7 +78,7 @@ Sub confirmMessage_old(m_ID)' As Integer)
 End Sub
 
 Function confirmMessage(confirm_m_ID, log_m_ID, mSender)' As Long)' As String
-
+    confirmMessage = ""
     Dim cmdData' As ADODB.Command
     Dim rsMsg
     Dim rst' As ADODB.Recordset
@@ -157,6 +157,9 @@ Function confirmMessage(confirm_m_ID, log_m_ID, mSender)' As Long)' As String
 
         rsMsg.Fields("mailStatus").Value = statusConfirmed
         rsMsg.Update
+
+        msg = "Message " & confirm_m_ID & " from " & rsMsg.Fields("Sender").Value & " confirmed successfully!"
+        confirmMessage = "Update Mail_Log Set answerText = '" & msg & "', answerRecipients='" & rsMsg.Fields("Sender").Value & "' where ID = " & log_m_ID
         Exit Do
     Loop
     dbConn.CommitTrans
@@ -164,7 +167,6 @@ Function confirmMessage(confirm_m_ID, log_m_ID, mSender)' As Long)' As String
     rsMsg.Close
     rst.Close
     On Error goto 0
-    confirmMessage = true
 End Function
 
 Function checkRights(m_ID)

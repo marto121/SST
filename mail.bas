@@ -85,7 +85,11 @@ Sub processMail(oItem)' As MailItem)
                 if LCase(left(oItem.Body,2)) = "ok" or LCase(left(oItem.Body,2)) = "ок" _
                   or LCase(left(oItem.Body,2)) = "оk" or LCase(left(oItem.Body,2)) = "oк" Then
                   Log "processMail", "Identified 'OK' command in message. Confirming data in Message ID " & old_m_ID, tLog, m_ID
-                  confirmMessage old_m_ID, m_ID, mSender
+                  dim mSQL 
+                  mSQL = confirmMessage (old_m_ID, m_ID, mSender)
+                  if mSQL<>"" Then
+                    dbConn.Execute mSQL
+                  End If
                 End If
             End If
         End If
@@ -109,6 +113,10 @@ Sub processMail(oItem)' As MailItem)
 End Sub
 
 Sub prepareAnswer(m_ID, mSender, mSubject)
+    Dim addRecipients
+    addRecipients = ""
+    Dim mailText
+    mailText = ""
     Dim oItem
     Set oItem = oOutlook.CreateItem(0)
     Wscript.Echo "Creating answer for message ID " & m_ID
@@ -124,16 +132,25 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
         Dim rs
         Set rs = CreateObject("ADODB.Recordset")
         ' Check if authentication is successful
-        rs.Open "select authStatus from Mail_Log where ID = " & m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
+        rs.Open "select authStatus, answerText, answerRecipients from Mail_Log where ID = " & m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
         Dim authStatus
         authStatus = rs.Fields("authStatus").Value
+        addRecipients = rs.Fields("answerRecipients").Value
+        mailText = rs.Fields("answerText").Value
         rs.Close
         if authStatus = 1 then
             ' Create countries list for sender
             rs.Open "select * from vw_Mail_Countries where LCase(EMail)='" & mSender & "'", dbConn, adOpenForwardOnly, adLockReadOnly
             Dim countryList
+            Dim Rep_Country
+            Rep_Country = "-"
             countryList = "'NONE'"
             While Not rs.EOF
+                If Rep_Country = "-" Then
+                    Rep_Country = rs.Fields("MIS_Code").Value
+                Else
+                    Rep_Country = ""
+                End If
                 countryList = countryList & ", '" & rs.Fields("MIS_Code").Value & "'"
                 rs.MoveNext
             Wend
@@ -147,10 +164,21 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                     sel = Trim(Split(mSubject, ":")(1))
                 End If
                 If sel <> "" then
-                    Log "prepareAnswer", "Detected country selection. Only Objects of " & sel & " will be selected.", tLog, m_ID
-                    sel = " and Left(NPE_Code, 2) = '" & sel & "'"
+                    Rep_Country = sel
+                    Log "prepareAnswer", "Detected country selection. Only Objects of " & Rep_Country & " will be selected.", tLog, m_ID
+                    sel = " and Left(NPE_Code, 2) = '" & Rep_Country & "'"
                 End If
-                attachment = createReport ( 1, m_ID, "where Left(NPE_Code, 2) in (" & countryList & ")" & sel)
+                Dim Rep_LE
+                Rep_LE = ""
+                If Rep_Country <> "" Then
+                    On Error Resume Next
+                    Rep_Le = dbConn.Execute("select Rep_LE from vw_CountryLE where MIS_Code = '" + Rep_Country + "'").Fields("Rep_LE").Value
+                    If Err.Number > 0 Then
+                        Log "prepareAnswer", "Error getting default Legal Entity for " & Rep_Country & ". The error is: " & Err.Description, tErr, m_ID
+                    End If
+                    On Error GoTo 0
+                End If
+                attachment = createReport ( 1, m_ID, "where Left(NPE_Code, 2) in (" & countryList & ")" & sel, Rep_LE)
                 If attachment <> "" Then
                     .Attachments.Add attachment
                 End If
@@ -158,21 +186,28 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                 Log "prepareAnswer", "No command found in E-mail subject", tLog, m_ID
             End If
 
-            rs.Open "select count(*) As cnt from File_Log where m_ID =" &  m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
+            rs.Open "select max(repLE) as repLE, max(repDate) as repDate, max(Confirm_Date) as Confirm_Date, count(*) As cnt from File_Log left join calendar on file_log.repDate = calendar.rep_date where m_ID =" &  m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
             If rs.Fields("cnt").Value > 0 Then
-                attachment = createChangeReport(m_ID)
+                attachment = createChangeReport_Template(m_ID)
                 Dim rsRoles
                 Set rsRoles = CreateObject("ADODB.Recordset")
                 rsRoles.Open "select * from vw_Mail_Roles where m_ID = " & m_ID, dbConn, adOpenDynamic, adLockReadOnly
-                Dim addRecipients
-                addRecipients = ""
                 While Not rsRoles.EOF
                     If (rsRoles.Fields("Role").Value And roleConfirm) = 2 Then
-                        addRecipients = addRecipients & ";" & rsRoles.Fields("EMail").Value
+                        If InStr(LCase(SST_Log_Recipients),LCase(rsRoles.Fields("EMail").Value)) = 0 Then
+                            addRecipients = addRecipients & ";" & rsRoles.Fields("EMail").Value
+                            mailText = mailText & "Dear " & dbConn.Execute("select FirstName from Users where EMail = '" & rsRoles.Fields("EMail").Value & "'").Fields("FirstName").Value & ",<BR>" 
+                        End If
                     End If
                     rsRoles.MoveNext
                 Wend
-                Wscript.Echo "Additional recipients: " & addRecipients
+                mailText = mailText & "<p>" & dbConn.Execute("select FullName from Users where email='" & mSender & "'").Fields("FullName").Value & " has sent data to the SST for " & rs.Fields("repLE").Value & " as of " & rs.Fields("repDate").Value & ". "
+                mailText = mailText & "In the attachment you may find the submitted report, highlighting the changes made. "
+                mailText = mailText & "In the log below you may see all the messages generated during processing the file. "
+                mailText = mailText & "Please have a look and if you find the data satisfactory, answer to this E-Mail with OK in the message body."
+                mailText = mailText & "If you have any concerns for the quality of delivered data, please contact the sender and request corerctions. "
+                mailText = mailText & "<p>The deadline for confirming the data for " & rs.Fields("repDate").Value & " is <u>" & rs.Fields("Confirm_Date").Value & "</u>."
+                mailText = mailText & "<p>Regards, SST"
                 .To = .To & addRecipients
                 rsRoles.Close
             Else
@@ -184,7 +219,9 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                 .Attachments.Add attachment
             End If
         End If
-        .HTMLBody = createHTMLLog(m_ID)
+        Dim htmlLog
+        htmlLog = createHTMLLog(m_ID)
+        .HTMLBody = "<p>" & mailText & "<p>" & htmlLog
         .Display
         '.Send '.Display 'Send  'Or use .Send
  '       .SaveAs "Drafts"

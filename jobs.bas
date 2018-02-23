@@ -32,15 +32,19 @@ End Sub
 Sub processFiles()
     Dim rsFiles
     Dim Rep_LE
+    Dim Rep_Date
     Set rsFiles = CreateObject("ADODB.Recordset")
     rsFiles.Open "select * from File_Log where fileStatus=" & statusReceived, dbConn, adOpenForwardOnly, adLockOptimistic
     While Not rsFiles.EOF
         Dim fileName
         fileName = rsFiles.Fields("fileName").Value
         WScript.Echo Now(), "Processing fileName " & fileName
-        Rep_LE = Import (fileName, rsFiles.Fields("m_ID").Value)
+        Import fileName, rsFiles.Fields("m_ID").Value, Rep_LE, Rep_Date
         rsFiles.Fields("fileStatus").Value = statusProcessed
         rsFiles.Fields("repLE").Value = Rep_LE
+        If Rep_Date <> "" Then
+            rsFiles.Fields("repDate").Value = DateSerial(left(Rep_Date,4), right(rep_date,2)+1, 0)
+        End If
         rsFiles.Update
         rsFiles.moveNext
     Wend

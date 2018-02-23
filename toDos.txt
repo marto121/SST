@@ -1,5 +1,5 @@
-1. update the meta sqls
-2. Check asset status code list
+1. update the meta sqls - OK
+2. Check asset status code list - OK
 2. fix the check rights when approving mail - OK
 3. Add restriction same person not to be able to confirm - OK
 4. Disable approval of files in wrong sequence - OK
@@ -8,12 +8,14 @@
 7. Add checks
 8. Insurance/Appraisal/Rental expiring
 9. Send updates also to country manager - OK
-10. Fix "text" format in template
+10. Fix "text" format in template - OK
+11. Implement reqManual
+12. Add the country to reqReport
 
 Updates in the Access:
-meta SQLs
-vw_Mail_Auth_Sender
-LCase in mail address
-vw_Mail_Objects
-Role column
-vwUserCountry - Add Role
+meta SQLs - OK
+vw_Mail_Auth_Sender - OK
+LCase in mail address - OK
+vw_Mail_Objects - OK
+Role column - OK
+vwUserCountry - Add Role - OK

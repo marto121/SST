@@ -3,7 +3,7 @@ Option Explicit
 Dim sheetTables' As Dictionary
 Dim codeLists' As Dictionary
 
-Function Import(fileName, m_ID)' As String, m_ID' As Long)
+Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As Long)
     'An Open connection and Log are assumed
     Dim rsCols' As ADODB.Recordset
     Dim rsTarget' As ADODB.Recordset
@@ -54,7 +54,7 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
     Else
         Log "Import", "Importing data for legal entity " & Rep_LE, tLog, m_ID
     End If
-    Import = Rep_LE
+    out_Rep_LE = Rep_LE
     Set rsTemp = dbConn.Execute("select * from vw_LE_Sender where Tagetik_Code=""" & Rep_LE & """ and id=" & m_ID)
     If rsTemp.EOF Then
         Log "Import", "You are not allowed to work with Legal Entity " & Rep_LE & ". Processing stopped.", tErr, m_ID
@@ -82,7 +82,7 @@ Function Import(fileName, m_ID)' As String, m_ID' As Long)
         Exit Do
     End If
     
-    
+    out_Rep_Date = Rep_Date
     For Each sh In wb.Sheets
         Log "Import", "Start loading sheet: " & sh.Name, tLog, m_ID
         If getSheetDef(sh.Name, m_ID) Then
@@ -280,7 +280,10 @@ Function getSheetDef(sheetName, m_ID)' As String, m_ID' As Long)' As Boolean
     
     Set rsCols = dbConn.Execute("select * from Import_Mapping where Target_Table is not null and Sheet_Name='" & sheetName & "'")
     If rsCols.EOF Then
-        Log "Import", "No definition found for sheet: " & sheetName, tWar, m_ID
+        If sheetName = "Title" or sheetName = "Codes" Then
+        Else
+            Log "Import", "No definition found for sheet: " & sheetName, tWar, m_ID
+        End If
         getSheetDef = False
     Else
         While Not rsCols.EOF
@@ -404,8 +407,8 @@ Function addCode(columns, lookup, m_ID)' As String, lookup' As String)' As Long
     For s = 1 To UBound(cols)
         rs.fields(cols(s)).value = Left(Split(lookup, ":")(s - 1), rs.fields(cols(s)).DefinedSize)
     Next' s
-    rs.fields("m_ID").Value = m_ID
     On Error Resume Next
+    rs.fields("m_ID").Value = m_ID
     rs.Update
     On Error GoTo 0
     If Err.Number<>0 Then
