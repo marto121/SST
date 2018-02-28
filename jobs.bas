@@ -5,7 +5,8 @@ Sub mainJob()
     Connect
     checkMail
     processFiles
-    sendReplies
+    createReplies
+    sendMails
 '    confirmMessage 2
     Log "mainJob", "mainJob finished successfully.", tLog, -1
     DisConnect
@@ -49,9 +50,10 @@ Sub processFiles()
         rsFiles.moveNext
     Wend
     rsFiles.Close
+    set rsFiles = Nothing
 End Sub
 
-Sub sendReplies()
+Sub createReplies()
     Dim rsMails
     Set rsMails = CreateObject("ADODB.Recordset")
     rsMails.Open "select ID, Sender, Subject, mailStatus from Mail_Log ml where mailStatus=" & statusReceived, dbConn, adOpenForwardOnly, adLockOptimistic
@@ -66,4 +68,5 @@ Sub sendReplies()
         rsMails.moveNext
     Wend
     rsMails.Close
+    set rsMails = Nothing
 End Sub
