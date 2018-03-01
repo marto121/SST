@@ -87,7 +87,13 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
         Log "Import", "Start loading sheet: " & sh.Name, tLog, m_ID
         If getSheetDef(sh.Name, m_ID) Then
             r = 2
-            While sh.Cells(r, 1).value <> ""
+'            While sh.Cells(r, 1).value <> ""
+            While r<=sh.UsedRange.Rows.Count
+              if sh.Cells(r,1).Value = "" Then
+               if sh.Cells(r,2).Value <> "" Then
+                Log "Import", "Error on Row " & r & ": first column cannot be empty!", tErr, m_ID
+               End If
+              Else
                 Dim tbl
                 Dim key' As Variant
                 Dim dstTable' As cDstTable
@@ -189,6 +195,7 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
 '                            End If
                             If lookup <> "" Then
                                 value = codeLists(dstTable.codeLists(col))(LCase(lookup))
+'                                wscript.echo "lookup:" & lookup & ", value: " & value
                                 If IsEmpty(value) And lookup <> "" Then
                                     value = addCode(dstTable.codeLists(col), lookup, m_ID)
                                 End If
@@ -220,7 +227,7 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                             rs.Update
                         End If
                         
-                        If value = "n/a" Then value = Null
+                        If value = "n/a" Then value = ""
                         If value <> "" Then ' check if value exists
                             If Not (rs.EditMode <> adEditAdd And dstTable.newOnlyCols.Exists(col)) Then 'check if the field has to be updated
                                 On Error Resume Next
@@ -230,22 +237,31 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                                 End If
                                 On Error GoTo 0
                             End If
+                        Else
+                            If dstTable.mandatoryCols.Exists(col) Then
+                                Log "Import", "Missing data in mandatory column: " & column_name & ". Sheet: " & sh.Name & ", Row: " & r , tWar, m_ID
+                            End If
                         End If
                         
                         If rs.EditMode = adEditAdd And ( _
                             (tbl = "Assets_List" And column_name = "Asset_Code" And codeLists.Exists(tbl & ":" & column_name)) _
+                            or (tbl = "Asset_History" And column_name = "Asset_Code" And codeLists.Exists(tbl & ":" & column_name)) _
                             Or (tbl = "NPE_List" And column_name = "NPE_Code" And codeLists.Exists(tbl & ":" & column_name)) _
+                            Or (tbl = "NPE_History" And column_name = "NPE_Code" And codeLists.Exists(tbl & ":" & column_name)) _
                             ) Then ' add manually the subasset if not existing
                                 If codeLists(tbl & ":" & column_name).Exists(LCase(value)) Then
                                     codeLists(tbl & ":" & column_name)(LCase(value)) = rs.fields("ID").value
+'                                    Wscript.Echo "Change ID to: " & LCase(value) & rs.fields("ID").value
                                 Else
                                     codeLists(tbl & ":" & column_name).Add LCase(value), rs.fields("ID").value
+'                                    Wscript.Echo "Add ID: " & LCase(value) & rs.fields("ID").value
                                 End If
                         End If
                     Next' col
 '                    If tbl = "NPE_History" Or tbl = "Asset_History" Then
 '                        rs.fields("Rep_Date") = DateSerial(Left(Rep_Date, 4), Right(Rep_Date, 2)+1, 0)
 '                    End If
+'                    Wscript.Echo("EditMode: " & tbl & ":" & rs.EditMode)
                     If rs.EditMode = adEditAdd or rs.EditMode = adEditInProgress Then
                         rs.Update
                     End If
@@ -253,6 +269,7 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                 Next' tbl
                 Exit Do
                 Loop
+              End If
 'nextRow:
                 r = r + 1
             Wend
@@ -303,6 +320,7 @@ Function getSheetDef(sheetName, m_ID)' As String, m_ID' As Long)' As Boolean
                 Set dstTable.cols = CreateObject ( "Scripting.Dictionary" )
                 Set dstTable.codeLists = CreateObject ( "Scripting.Dictionary" )
                 Set dstTable.newOnlyCols = CreateObject ( "Scripting.Dictionary" )
+                Set dstTable.mandatoryCols = CreateObject ( "Scripting.Dictionary" )
                 sheetTables.Add tableName, dstTable
             End If
             If rsCols.fields("Key").value <> "" Then
@@ -329,6 +347,9 @@ Function getSheetDef(sheetName, m_ID)' As String, m_ID' As Long)' As Boolean
             End If
             If rsCols.fields("UpdateMode").value = "KeepOld" Then
                 sheetTables(tableName).newOnlyCols.Add columnID, rsCols.fields("UpdateMode").value
+            End If
+            If rsCols.fields("UpdateMode").value = "Mandatory" Then
+                sheetTables(tableName).mandatoryCols.Add columnID, rsCols.fields("UpdateMode").value
             End If
             rsCols.MoveNext
         Wend

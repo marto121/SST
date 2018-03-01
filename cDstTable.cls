@@ -14,6 +14,7 @@ Class cDstTable
     Public cols' As Dictionary
     Public codeLists' As Dictionary
     Public newOnlyCols' As Dictionary
+    Public mandatoryCols' As Dictionary
 End Class
 
 

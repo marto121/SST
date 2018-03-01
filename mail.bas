@@ -63,10 +63,10 @@ Sub processMail(oItem)' As MailItem)
     
     Dim oAtt' As Outlook.Attachment
     For Each oAtt In oItem.Attachments
-        If Left(getFileExt(oAtt.fileName), 2) <> "xl" Then
+        If LCase(Left(getFileExt(oAtt.fileName), 2)) <> "xl" Then
             Log "processMail", "Attachment: " & oAtt.fileName & " is not an Excel file. Skipping ...", tWar, m_ID
         Else
-            Log "processMail", "Processing attachment: " & oAtt.fileName, tLog, m_ID
+            Log "processMail", "Saving attachment: " & oAtt.fileName, tLog, m_ID
             processAttachment oAtt, mCountry, m_ID
         End If
     Next' oAtt

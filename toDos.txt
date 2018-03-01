@@ -6,11 +6,14 @@
 5. Improve template
 6. Add currency conversion
 7. Add checks
+- if the key date exists - OK
+- if the currency exists - OK
+- if the business case exists for approved/repossessed
 8. Insurance/Appraisal/Rental expiring
 9. Send updates also to country manager - OK
 10. Fix "text" format in template - OK
 11. Implement reqManual
-12. Add the country to reqReport
+12. Add the country to reqReport - OK
 
 Updates in the Access:
 meta SQLs - OK
@@ -19,3 +22,9 @@ LCase in mail address - OK
 vw_Mail_Objects - OK
 Role column - OK
 vwUserCountry - Add Role - OK
+
+-- beginning of next month:
+copy actuals from last month
+prepare and send reminders
+fixed switched columns in apprpurchaseprice
+update the total npe in npes_identified - done for BG

@@ -304,7 +304,7 @@ Function createChangeReport_Template(m_ID)' As Long)' As String
         Dim rsF
         set rsF = dbConn.Execute("select repLE, repDate from File_Log where m_ID=" & m_ID)
         wb.Names("Rep_LE").RefersToRange.Value = rsF.Fields("repLE").Value
-        wb.Names("Rep_Date").RefersToRange.Value = rsF.Fields("repDate").Value
+        wb.Names("Rep_Date").RefersToRange.Value = year(rsF.Fields("repDate").Value)*100+month(rsF.Fields("repDate").Value)
         wb.Names("preparedBy").RefersToRange.Value = "SST Change report for message " & m_ID
         wb.Names("preparedOn").RefersToRange.Value = Now()
         On Error Goto 0
