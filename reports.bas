@@ -184,7 +184,7 @@ Function createReport(report_id, m_ID, condition, Rep_LE)' As Long, m_ID' As Lon
             Log "createReport", "Report with id: " & report_id & " has no defined sheets", tErr, m_ID
             Exit Do
         End If
-        Log "createReport", "Creating report """ & report_code & """", tLog, m_ID
+        Log "createReport", "Creating report """ & report_code & """ for " & Rep_LE, tLog, m_ID
         Set ex = CreateObject ( "Excel.Application" )
 
         If templateFileName <> "" Then
@@ -272,6 +272,7 @@ Function createHTMLLog(m_ID)
         "<thead><th>Date</th><th>Message</th></thead>" & vbNewLine & _
         tBody & vbNewLine & "</table>"
     createHTMLLog = sHTML
+    set rs = Nothing
 End Function
 
 

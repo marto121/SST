@@ -109,22 +109,25 @@ Sub processMail(oItem)' As MailItem)
     End If
 
     rs.Close
+    set rs = Nothing
     Log "processMail", "End processing mail: " & mSubject, tLog, m_ID
 End Sub
 
 Sub prepareAnswer(m_ID, mSender, mSubject)
+    
+    Dim mqRecipients: mqRecipients = ""
+    Dim mqSubject: mqSubject = ""
+    Dim mqBody: mqBody = ""
+    Dim mqAttachments: mqAttachments = ""
+
     Dim addRecipients
     addRecipients = ""
     Dim mailText
     mailText = ""
-    Dim oItem
-    Set oItem = oOutlook.CreateItem(0)
     Wscript.Echo "Creating answer for message ID " & m_ID
-    With oItem
-        set .SendUsingAccount = oItem.Session.Accounts.Item(SST_Account_ID)
-        .To = mSender
-        .CC = SST_Log_Recipients
-        .Subject = "{" & m_ID & "} SST Loading log"
+
+        mqRecipients = mSender
+        mqSubject = "{" & m_ID & "} SST Loading log"
         Wscript.Echo Now(), "Start Creating HTML Log"
         Dim attachment' As String
         Wscript.Echo Now(), "Start Creating Change Report Log"
@@ -182,6 +185,8 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                 If attachment <> "" Then
                     .Attachments.Add attachment
                 End If
+            ElseIf Left(Trim(mSubject),12) = "reqReminders" and InStr(LCase(SST_Log_Recipients), LCase(mSender))>0 Then
+                createReminders m_ID
             Else
                 Log "prepareAnswer", "No command found in E-mail subject", tLog, m_ID
             End If
@@ -208,7 +213,7 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                 mailText = mailText & "If you have any concerns for the quality of delivered data, please contact the sender and request corerctions. "
                 mailText = mailText & "<p>The deadline for confirming the data for " & rs.Fields("repDate").Value & " is <u>" & rs.Fields("Confirm_Date").Value & "</u>."
                 mailText = mailText & "<p>Regards, SST"
-                .To = .To & addRecipients
+                mqRecipients = mqRecipients & addRecipients
                 rsRoles.Close
             Else
                 attachment = ""
@@ -216,17 +221,24 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
             End If
 
             If attachment <> "" Then
-                .Attachments.Add attachment
+                mqAttachments = mqAttachments & attachment & ";"
             End If
         End If
         Dim htmlLog
         htmlLog = createHTMLLog(m_ID)
-        .HTMLBody = "<p>" & mailText & "<p>" & htmlLog
-        .Display
-        '.Send '.Display 'Send  'Or use .Send
- '       .SaveAs "Drafts"
-    End With
-    Set oItem = Nothing
+        mqBody = "<p>" & mailText & "<p>" & htmlLog
+
+    queueMail mqRecipients, "", mqSubject, mqBody, mqAttachments
+End Sub
+
+Sub queueMail(mqRecipients, mqCC, mqSubject, mqBody, mqAttachments)
+    Dim rsMails
+    set rsMails = CreateObject("ADODB.Recordset")
+    rsMails.Open "select * from mail_queue where 1=0", dbConn, adOpenForwardOnly, adLockOptimistic
+    rsMails.AddNew Array("mRecipients", "mCC","mSubject","mBody","mAttachments","mStatus","mDate"), Array(mqRecipients, mqCC, mqSubject, mqBody, mqAttachments, 0, Now())
+    rsMails.Update
+    rsMails.Close
+    set rsMails = Nothing
 End Sub
 
 Sub processAttachment(oAtt, mCountry, m_ID)' As Outlook.Attachment, mCountry' As String, m_ID' As Long)
@@ -239,5 +251,46 @@ Sub processAttachment(oAtt, mCountry, m_ID)' As Outlook.Attachment, mCountry' As
     rsFiles.AddNew Array("m_ID", "fileName", "fileStatus"), Array(m_ID, fileName, statusReceived)
     rsFiles.Update
     rsFiles.Close
+    set rsFiles = Nothing
     'Import fileName, m_ID
+End Sub
+
+Sub sendMails()
+    Dim rsMails
+    set rsMails = CreateObject("ADODB.Recordset")
+    rsMails.Open "select * from mail_queue where mStatus = 0", dbConn, adOpenForwardOnly, adLockOptimistic
+    While not rsMails.EOF
+        Dim oItem
+        Set oItem = oOutlook.CreateItem(0)
+        With oItem
+            set .SendUsingAccount = oItem.Session.Accounts.Item(SST_Account_ID)
+            .To = rsMails.Fields("mRecipients").Value
+            .CC = rsMails.Fields("mCC").Value & SST_Log_Recipients 
+            .Subject = rsMails.Fields("mSubject").Value
+            .HTMLBody = rsMails.Fields("mBody").Value
+            Dim vAttachments
+            
+            If not IsNull(rsMails.Fields("mAttachments").Value) Then
+                vAttachments = Split(rsMails.Fields("mAttachments").Value,";")
+                Dim v
+                For v = 0 to UBound(vAttachments)
+                    If vAttachments(v)<>"" Then
+                        On Error Resume Next
+                        .Attachments.Add vAttachments(v)
+                        If Error.Number>0 Then
+                            Wscript.Echo "Attachment not found for queued message id " & rsMails.Fields("ID").Value
+                        End If
+                        On Error Goto 0
+                    End If
+                Next
+            End If
+            .Display
+            rsMails.Fields("mStatus").Value = 1
+            rsMails.Update
+'            .Send
+        End With
+        rsMails.MoveNext
+    Wend
+    rsMails.Close
+    set rsMails = Nothing
 End Sub

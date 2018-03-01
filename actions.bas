@@ -165,7 +165,9 @@ Function confirmMessage(confirm_m_ID, log_m_ID, mSender)' As Long)' As String
     dbConn.CommitTrans
     On Error resume Next
     rsMsg.Close
+    set rsMsg = Nothing
     rst.Close
+    set rst = Nothing
     On Error goto 0
 End Function
 
@@ -190,5 +192,60 @@ Function checkRights(m_ID)
         rs.MoveNext
     Wend
     rs.Close
+    set rs = Nothing
     checkRights = hasRights
 End Function
+
+Sub createReminders(m_ID)
+    Dim Rep_Date
+    Dim Send_Date
+    Dim Confirm_Date
+
+    With dbConn.Execute("select Rep_Date, Send_Date, Confirm_Date from calendar inner join lastdate on lastdate.currmonth=calendar.Rep_Date")
+        Rep_Date = .Fields("Rep_Date").Value
+        Send_Date = .Fields("Rep_Date").Value
+        Confirm_Date = .Fields("Rep_Date").Value
+        .Close
+    End With
+    Dim rsLE
+    Set rsLE = CreateObject("ADODB.RecordSet")
+    rsLE.Open "select Legal_Entities.ID, Tagetik_Code, LE_Name, MIS_Code from Legal_Entities inner join nom_countries on nom_countries.id = legal_Entities.LE_Country_ID where Active = 1", dbConn, adOpenForwardOnly, adLockReadOnly
+    While Not rsLE.EOF
+        Dim mqRecipients: mqRecipients = ""
+        Dim mqCC: mqCC = ""
+        Dim mqSubject: mqSubject = ""
+        Dim mqBody: mqBody = ""
+        Dim mqAttachments: mqAttachments = ""
+        
+        mqSubject = "SST Due Dates for UCTAM " & rsLE.Fields("MIS_Code") & " for " & (Year(Rep_Date)*100 + Month(Rep_Date))
+        Dim rsUsers
+        Set rsUsers = CreateObject("ADODB.RecordSet")
+        rsUsers.Open "select Role, FirstName, EMail from Users where LE_ID=" & rsLE.Fields("ID").Value, dbConn, adOpenForwardOnly, adLockReadOnly
+        While not rsUsers.EOF
+            If (rsUsers.Fields("Role").Value And roleConfirm) = 2 Then
+                mqCC = mqCC & rsUsers.Fields("EMail").Value & ";"
+            Else
+                mqBody = mqBody & "<p>Dear " & rsUsers.Fields("FirstName").Value & ","
+                mqRecipients = mqRecipients &  rsUsers.Fields("EMail").Value & ";"
+            End If
+            rsUsers.MoveNext
+        Wend
+        rsUsers.Close
+        If mqRecipients = "" Then 
+            Log "createReminders", "No recipients found for LE " & rsLE.Fields("Tagetik_Code").Value & ":(" & rsLe.Fields("MIS_Code").Value & ") "& rsLE.Fields("LE_Name").Value, rErr, m_ID
+        Else
+            mqBody = mqBody & "<p>In the attched file you may find the monthly SST Template for " _
+                & rsLE.Fields("Tagetik_Code").Value & ":(" & rsLe.Fields("MIS_Code").Value & ") "& rsLE.Fields("LE_Name").Value _
+                & " as of " & (Year(Rep_Date)*100 + Month(Rep_Date)) & "."
+            mqBody = mqBody & "<p>Please make sure that the template is prepared and sent back to the SST not later than <b>" & Send_Date & "</b>."
+            mqBody = mqBody & "<p>Deadline for final confirmation by the CM is <b>" & Confirm_Date & "</b>."
+            mqBody = mqBody & "<p>Regards, SST"
+            mqAttachments = createReport ( 1, m_ID, "where Left(NPE_Code, 2) = '" & rsLE.Fields("MIS_Code").Value & "'", rsLE.Fields("Tagetik_Code").Value)
+            queueMail mqRecipients, mqCC, mqSubject, mqBody, mqAttachments
+        End If
+        rsLE.MoveNext
+    Wend
+    rsLE.Close
+    set rsLE = Nothing
+    set rsUsers = Nothing
+End Sub

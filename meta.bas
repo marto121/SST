@@ -17,6 +17,12 @@ Sub printMeta()
     
     Dim outFile
     Set outFile = fso.CreateTextFile(outFileName, fsoForWriting)
+    For Each td In CurrentDB.TableDefs ' Drops
+      If Left(td.Name,4) <> "MSys" Then
+        sql = "DROP TABLE " & td.Name & " CASCADE;" & vbNewLine
+        outFile.Write sql
+      End If
+    Next' td
     For Each td In CurrentDB.TableDefs
       If Left(td.Name,4) <> "MSys" Then
         sql = "-- " & td.LastUpdated & vbNewLine
@@ -135,30 +141,90 @@ Sub printMeta()
       End If
     Next' td
     For Each qd In CurrentDb.QueryDefs
-        sql = "-- " & qd.LastUpdated & vbNewLine
+        dim drop
+        drop = "-- " & qd.LastUpdated & vbNewLine
+        drop = drop & "DROP"
+        sql = ""
         sql = sql & "CREATE"
-        If LCase(Left(qd.sql, 3)) = "del" Or LCase(Left(qd.sql, 3)) = "ins" Or LCase(Left(qd.sql, 3)) = "upd" Then
+        If LCase(Left(qd.sql, 3)) = "del" Or LCase(Left(qd.sql, 3)) = "ins" Or LCase(Left(qd.sql, 3)) = "upd" _
+            or qd.Parameters.Count>0 Then
+            drop = drop & " function if exists " & qd.Name & ";" & vbNewLine
             sql = sql & " function " & qd.Name & "( "
             Dim p' As Parameter
             For Each p In qd.Parameters
                 sql = sql & Replace(Replace(p.Name, "[:", "p_"), "]", "") & " " & getFieldType(p.Type) & ","
             Next' p
-            sql = Left(sql, Len(sql) - 1) & ") RETURNS void LANGUAGE 'sql' AS $$" & vbNewLine
+            sql = Left(sql, Len(sql) - 1) & ") RETURNS "
+            if LCase(Left(qd.sql,3)) = "sel" Then
+                sql = sql & "table ("
+                for each f in qd.Fields
+                    sql = sql & f.Name & " " & getFieldType(f.Type) 
+                    If f.Type = dbText then 
+                        'sql = sql & "(" & f.Size & ")"
+                    Else
+                    End If
+                    sql = sql & ","
+                next
+                sql = left(sql, len(sql)-1) & ")"
+            Else
+                sql = sql & " void "
+            End If
+            sql = sql & " LANGUAGE 'sql' AS $$" & vbNewLine
         Else
             sql = sql & " VIEW " & qd.Name & " AS" & vbNewLine
+            drop = drop & " view if exists " & qd.Name & ";" & vbNewLine
         End If
         sql = sql & Replace(Replace(Replace(qd.sql, ":", "p_"), "]", ""), "[", "") & vbNewLine
-        If LCase(Left(qd.sql, 3)) = "del" Or LCase(Left(qd.sql, 3)) = "ins" Or LCase(Left(qd.sql, 3)) = "upd" Then
+        if LCase(Left(qd.sql, 3)) = "ins" then
+            dim fr, as_
+            as_=0
+            fr = instr(lcase(qd.sql),"from")
+            as_ = instr(lcase(qd.sql),")")
+            if as_=0 or as_>fr then
+                as_ = instr(lcase(qd.sql), " as ")
+                dim fn
+                fn = ""
+                while as_>0 and as_<fr
+                    dim cm
+                    cm = instr(as_, qd.sql, ",")
+                    if cm=0 then cm = fr-2
+                    fn = fn & mid(qd.sql, as_+3, cm-as_-2)
+                    as_ = instr(as_+1, lcase(qd.sql), " as ")
+                wend
+                sql = replace(sql, "SELECT" , "(" & fn & ") " & "SELECT")
+            end if
+        end if
+        If LCase(Left(qd.sql, 3)) = "del" Or LCase(Left(qd.sql, 3)) = "ins" Or LCase(Left(qd.sql, 3)) = "upd" _
+            or qd.Parameters.Count>0 Then
             sql = sql & "$$;" & vbNewLine
-            sql = Replace(sql, "DELETE *", "DELETE")
-            sql = Replace(sql, "year ", "extract(year from ")
-            sql = Replace(sql, "#1/1/2000#", "'2000-1-1'")
         End If
+        dim de
+        de = instr(LCase(sql),"delete")
+        if de>0 then
+            'dim fr
+            fr = instr(de, lcase(sql), "from")
+            sql = left(sql, de+6) & right(sql, len(sql)-fr+1)
+        end if
+        sql = Replace(sql, "DELETE *", "DELETE")
+        sql = replaceIIF(sql)
+        sql = replaceIsNull(sql)
+        sql = Replace(sql, "year(", "extract(year from ")
+        sql = Replace(sql, "#1/1/2000#", "'2000-1-1'")
+        sql = Replace(sql, "p_m_ID varchar", "p_m_ID integer")
+        sql = Replace(sql, "&", "||")
+        sql = Replace(sql, """", "'")
+        sql = Replace(sql, "iif(tab.m_id=-1,", "case when tab.m_id=-1 then")
+        sql = Replace(sql, "iif(tab.m_id<>-1,", "case when tab.m_id<>-1 then")
+        sql = Replace(sql, ",null)", " else null end")
+        sql = Replace(sql, ":", "p_")
         on error Resume Next
-        outFile.Write sql
-        If Err.Number>0 Then
-            WScript.Echo sql
-        End If
+        if LCase(Left(qd.sql, 3)) <> "tra" then
+            outFile.Write drop
+            outFile.Write sql
+            If Err.Number>0 Then
+                WScript.Echo sql
+            End If
+        end if
         on error GoTo 0
     Next' qd
     outFile.Close
@@ -376,7 +442,7 @@ Function getFieldType(ft)' As String
         Case dbInteger: getFieldType = "smallint"
         Case dbLong: getFieldType = "integer"
         Case dbLongBinary: getFieldType = "Long Binary (OLE Object)"
-        Case dbMemo: getFieldType = "Memo"
+        Case dbMemo: getFieldType = "varchar(2000)"
         Case dbNumeric: getFieldType = "numeric"
         Case dbSingle: getFieldType = "real"
         Case dbText: getFieldType = "varchar"
@@ -386,3 +452,63 @@ Function getFieldType(ft)' As String
         Case Else: getFieldType = "Unknown"
     End Select
 End Function
+
+Function replaceIsNull(str)
+    Dim res, i, b1, b2, arg
+    res = str 
+    While InStr(LCase(res), "isnull")
+        i = InStr(LCase(res), "isnull")
+        b1 = findNext(i+1, res, "(")
+        b2 = findNext(b1+1, res, ")")
+        arg = Mid(res, b1 + 1, b2 - b1 - 1)
+        res = Left(res, i - 1) & " " & arg & " is null " & Right(res, Len(res) - b2)
+    Wend
+    replaceIsNull = res
+End Function
+
+Function replaceIIF(str)
+    Dim res, i, b1, c1, c2, b2, ob, r
+    res = str
+    r=0
+    While InStr(LCase(res), "iif")
+        i = InStr(LCase(res), "iif")
+        b1 = findNext(i + 1, res, "(")
+        b2 = findNext(b1 + 1, res, ")")
+        c1 = findNext(b1 + 1, res, ",")
+        c2 = findNext(c1 + 1, res, ",")
+        If c2 > b2 Then c2 = b2
+        Dim condition, truepart, falsepart
+        condition = Mid(res, b1 + 1, c1 - b1 - 1)
+        truepart = Mid(res, c1 + 1, c2 - c1 - 1)
+        If c2 = b2 Then
+            falsepart = " null "
+        Else
+            falsepart = Mid(res, c2 + 1, b2 - c2 - 1)
+        End If
+        res = Left(res, i - 1) & " case when " & condition & " then " & truepart & " else " & falsepart & " end " & Right(res, Len(res) - b2)
+    Wend
+'    WScript.echo(r & " replacements")
+    replaceIIF = res
+End Function
+
+Function findNext(start, str, find)
+    Dim ob,cb,dd, opens
+    findNext = InStr(start, str, find)
+    If find = "(" Then Exit Function
+    
+    ob = start
+    cb = start
+    
+    Do While InStr(ob + 1, str, "(") <> 0 And InStr(ob + 1, str, "(") < findNext
+        While InStr(ob + 1, str, "(") <> 0 And InStr(ob + 1, str, "(") < findNext
+            opens = opens + 1
+            ob = InStr(ob + 1, str, "(")
+        Wend
+        While opens > 0
+            opens = opens - 1
+            cb = InStr(cb + 1, str, ")")
+        Wend
+        findNext = InStr(cb + 1, str, find)
+    Loop
+End Function
+
