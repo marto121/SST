@@ -1,0 +1,17 @@
+{
+  "name": "nodesst",
+  "version": "1.0.0",
+  "description": "NodeJS implementation of SST",
+  "main": "app.js",
+  "dependencies": {
+    "express": "^4.16.2",
+    "node-adodb": "^4.0.7",
+    "node-sspi": "^0.2.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}

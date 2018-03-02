@@ -203,8 +203,8 @@ Sub createReminders(m_ID)
 
     With dbConn.Execute("select Rep_Date, Send_Date, Confirm_Date from calendar inner join lastdate on lastdate.currmonth=calendar.Rep_Date")
         Rep_Date = .Fields("Rep_Date").Value
-        Send_Date = .Fields("Rep_Date").Value
-        Confirm_Date = .Fields("Rep_Date").Value
+        Send_Date = .Fields("Send_Date").Value
+        Confirm_Date = .Fields("Confirm_Date").Value
         .Close
     End With
     Dim rsLE
@@ -223,7 +223,9 @@ Sub createReminders(m_ID)
         rsUsers.Open "select Role, FirstName, EMail from Users where LE_ID=" & rsLE.Fields("ID").Value, dbConn, adOpenForwardOnly, adLockReadOnly
         While not rsUsers.EOF
             If (rsUsers.Fields("Role").Value And roleConfirm) = 2 Then
-                mqCC = mqCC & rsUsers.Fields("EMail").Value & ";"
+                If InStr(LCase(SST_Log_Recipients),LCase(rsUsers.Fields("EMail").Value))=0 Then
+                    mqCC = mqCC & rsUsers.Fields("EMail").Value & ";"
+                End If
             Else
                 mqBody = mqBody & "<p>Dear " & rsUsers.Fields("FirstName").Value & ","
                 mqRecipients = mqRecipients &  rsUsers.Fields("EMail").Value & ";"
@@ -234,7 +236,7 @@ Sub createReminders(m_ID)
         If mqRecipients = "" Then 
             Log "createReminders", "No recipients found for LE " & rsLE.Fields("Tagetik_Code").Value & ":(" & rsLe.Fields("MIS_Code").Value & ") "& rsLE.Fields("LE_Name").Value, rErr, m_ID
         Else
-            mqBody = mqBody & "<p>In the attched file you may find the monthly SST Template for " _
+            mqBody = mqBody & "<p>In the attached file you may find the monthly SST Template for " _
                 & rsLE.Fields("Tagetik_Code").Value & ":(" & rsLe.Fields("MIS_Code").Value & ") "& rsLE.Fields("LE_Name").Value _
                 & " as of " & (Year(Rep_Date)*100 + Month(Rep_Date)) & "."
             mqBody = mqBody & "<p>Please make sure that the template is prepared and sent back to the SST not later than <b>" & Send_Date & "</b>."
