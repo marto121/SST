@@ -34,6 +34,7 @@ Function GetFolderPath(ByVal FolderPath)' As String)' As Outlook.Folder
         Set oFolder = oOutlook.Session.Folders.Item(FoldersArray(0))
         If Err<>0 Then
             WScript.Echo Now(), "Error obtaining Outlook session / Folder " & FoldersArray(0)
+            On Error GoTo 0
             Exit Do
         End If
         If Not oFolder Is Nothing Then

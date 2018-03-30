@@ -140,6 +140,7 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                         dstTable.cmd.Parameters("@" & key).value = value
                         If Err.Number > 0 Then
                             Log "Import", "Error in Sheet: " & sh.Name & ", row: " & r & ", column: " & key & ". Value is: " & value & ". The error is: " & Err.Description, tErr, m_ID
+                            On Error GoTo 0
                             Exit Do
                         End If
                         On Error GoTo 0
@@ -157,8 +158,9 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                         msg = ""
                         for Each tmpPar in dstTable.cmd.Parameters
                             msg = msg & "Parameter " & tmpPar.Name & " has value " & tmpPar.Value & ", "
-                        Next 
+                        Next
                         Log "Import", msg & debug, tErr, m_ID
+                        On Error GoTo 0
                         Exit Do
                     End If
                     On Error GoTo 0
@@ -231,9 +233,16 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                         If value <> "" Then ' check if value exists
                             If Not (rs.EditMode <> adEditAdd And dstTable.newOnlyCols.Exists(col)) Then 'check if the field has to be updated
                                 On Error Resume Next
+                                if rs.fields(column_name).Type = adVarWChar Then
+                                    If Len(value)>rs.Fields(column_name).DefinedSize Then
+                                        value = left(value,rs.Fields(column_name).DefinedSize)
+                                        Log "Import", "Error importing value: " & value & ". Sheet: " & sh.Name & ", Row: " & r & ", Column: " & column_name & ". Truncated to max length of " & rs.Fields(column_name).DefinedSize, tWar, m_ID
+                                    End If
+                                End If
                                 rs.fields(column_name).value = value
                                 If Err.Number <> 0 Then
                                     Log "Import", "Error importing value: " & value & ". Sheet: " & sh.Name & ", Row: " & r & ", Column: " & column_name & ". Error text: " & Err.Description, tWar, m_ID
+                                    Err.Clear
                                 End If
                                 On Error GoTo 0
                             End If

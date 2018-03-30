@@ -183,7 +183,7 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                 End If
                 attachment = createReport ( 1, m_ID, "where Left(NPE_Code, 2) in (" & countryList & ")" & sel, Rep_LE)
                 If attachment <> "" Then
-                    .Attachments.Add attachment
+                    mqAttachments = attachment
                 End If
             ElseIf Left(Trim(mSubject),12) = "reqReminders" and InStr(LCase(SST_Log_Recipients), LCase(mSender))>0 Then
                 createReminders m_ID
@@ -277,7 +277,7 @@ Sub sendMails()
                     If vAttachments(v)<>"" Then
                         On Error Resume Next
                         .Attachments.Add vAttachments(v)
-                        If Error.Number>0 Then
+                        If Err.Number>0 Then
                             Wscript.Echo "Attachment not found for queued message id " & rsMails.Fields("ID").Value
                         End If
                         On Error Goto 0

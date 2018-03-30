@@ -56,7 +56,7 @@
   <script language="VBScript" src="meta.bas"/>
   <script language="VBScript">
     Init(false)
-    'createInserts()
+    createInserts()
     printMeta()
   </script>
 </job>

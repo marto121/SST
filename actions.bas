@@ -251,3 +251,170 @@ Sub createReminders(m_ID)
     set rsLE = Nothing
     set rsUsers = Nothing
 End Sub
+
+Function Nz(value, valueIfNull)
+    If IsNull(value) Then
+        Nz = valueIfNull
+    Else
+        Nz = value
+    End If
+End Function
+
+Sub fxConvert(m_ID)
+    Dim rsMeta' As New ADODB.Recordset
+    Set rsMeta = CreateObject("ADODB.Recordset")
+    Dim rsACCY' As New ADODB.Recordset
+    Set rsACCY = CreateObject("ADODB.Recordset")
+    Dim rsNCCY' As New ADODB.Recordset
+    Set rsNCCY = CreateObject("ADODB.Recordset")
+    Dim rsUpd' As New ADODB.Recordset
+    Set rsUpd = CreateObject("ADODB.Recordset")
+    Dim tbl' As New ADODB.Recordset
+    Set tbl = CreateObject("ADODB.Recordset")
+
+    Dim vEUR_id' As Integer
+    Dim updCCY_id' As Long
+    Dim updCCY_col' As Long
+    Dim updEUR_col' As Long
+    Dim noDate' As Long
+
+    rsMeta.Open "Meta_CCY_Conversion", dbConn, adOpenForwardOnly, adLockReadOnly
+    
+    rsACCY.Open "vw_asset_ccy_id", dbConn, adOpenDynamic, adLockReadOnly
+    rsNCCY.Open "vw_npe_ccy_id", dbConn, adOpenDynamic, adLockReadOnly
+    rsUpd.Open "Update_Log", dbConn, adOpenForwardOnly, adLockOptimistic
+    vEUR_id = dbConn.Execute("select id from nom_currencies where currency_code='EUR'").Fields("ID").value
+    
+    Dim aFixedRates()
+    With dbConn.Execute("nom_currencies")
+        While Not .EOF
+            If Not IsNull(.Fields("Fixed_Rate").value) Then
+                ReDim Preserve aFixedRates(.Fields("ID").value)
+                aFixedRates(.Fields("ID")) = .Fields("Fixed_Rate").value
+            End If
+            .MoveNext
+        Wend
+        .Close
+    End With
+    
+    
+    rsMeta.MoveFirst
+    While Not rsMeta.EOF
+        Dim Ref_Date_Col: Ref_Date_Col = rsMeta.Fields("Ref_Date_Col").value
+        Dim Ref_Date_Add_Col: Ref_Date_Add_Col = rsMeta.Fields("Ref_Date_Add_Col").value
+        Dim CCY_ID_Col: CCY_ID_Col = rsMeta.Fields("CCY_ID_Col").value
+        Dim CCY_Amount_Col: CCY_Amount_Col = rsMeta.Fields("CCY_Amount_Col").value
+        Dim EUR_Amount_Col: EUR_Amount_Col = rsMeta.Fields("EUR_Amount_Col").value
+        Dim Table_Name: Table_Name = rsMeta.Fields("Table_Name").value
+        Dim Asset_ID_Col: Asset_ID_Col = rsMeta.Fields("Asset_ID_Col").value
+        
+        ' Reset counters
+        updCCY_id = 0
+        updCCY_col = 0
+        updEUR_col = 0
+        noDate = 0
+        
+        ' 1 Missing CCY_Code
+        tbl.Open "select * from " & Table_Name & " where " & CCY_ID_Col & " is null and m_ID=" & m_ID, dbConn, adOpenForwardOnly, adLockOptimistic
+        While Not tbl.EOF
+            If False And (Nz(tbl.Fields(EUR_Amount_Col).value, 0) <> 0 And Nz(tbl.Fields(CCY_Amount_Col).value, 0) = 0) Then
+                tbl.Fields(CCY_ID_Col).value = vEUR_id
+                rsUpd.AddNew Array("Table_Name", "R_ID", "Column_Name", "Old_Value", "New_Value", "Upd_Time"), Array(Table_Name, tbl.Fields("ID").value, CCY_ID_Col, Null, vEUR_id, Now())
+                updCCY_id = updCCY_id + 1
+            Else
+                Dim rsOCCY' As ADODB.Recordset
+                If Left(LCase(Table_Name), 3) = "npe" Then
+                    Set rsOCCY = rsNCCY
+                Else
+                    Set rsOCCY = rsACCY
+                End If
+                rsOCCY.MoveFirst
+                rsOCCY.Find ("ID=" & tbl.Fields(Asset_ID_Col).value & "")
+                If rsACCY.EOF Then
+                    Debug.Print "Asset ID " & tbl.Fields(Asset_ID_Col).value & " not found"
+                Else
+                    tbl.Fields(CCY_ID_Col).value = rsOCCY.Fields("Currency_ID").value
+                    rsUpd.AddNew Array("Table_Name", "R_ID", "Column_Name", "Old_Value", "New_Value", "Upd_Time"), Array(Table_Name, tbl.Fields("ID").value, CCY_ID_Col, Null, rsOCCY.Fields("Currency_ID").value, Now())
+                    updCCY_id = updCCY_id + 1
+                End If
+            End If
+            tbl.MoveNext
+        Wend
+        tbl.Close
+        ' only one column filled_in
+        Dim sql' As String
+        sql = "select " & Table_Name & ".ID, curr.id as curr_id," & Ref_Date_Col & "," & Nz(Ref_Date_Add_Col, " null  as empty") & "," & CCY_Amount_Col & "," & EUR_Amount_Col & ", currency_code from " & Table_Name & " inner join nom_currencies as curr on curr." 
+        If CCY_ID_Col <> "NPE_Currency" Then
+            sql = sql & "ID"
+        Else
+            sql = sql & "Currency_Code"
+        End If
+        sql = sql &  " = " & Table_Name & "." & CCY_ID_Col & " where ((" & CCY_Amount_Col & "<>0 and iif(isnull(" & EUR_Amount_Col & "),0," & EUR_Amount_Col & ")=0) or (" & EUR_Amount_Col & "<>0 and iif(isnull(" & CCY_Amount_Col & "),0," & CCY_Amount_Col & ")=0)) and m_ID=" & m_ID
+        tbl.Open sql, dbConn, adOpenForwardOnly, adLockOptimistic
+        While Not tbl.EOF
+            
+            Dim fx' As Double
+            fx = 0
+            If Not IsEmpty(aFixedRates(tbl.Fields("curr_id").value)) Then
+                fx = aFixedRates(tbl.Fields("curr_id").value)
+            Else
+                Dim Ref_Date
+                
+                Ref_Date = Nz(tbl.Fields(Ref_Date_Col).value, DateSerial(2000, 1, 1))
+                If Ref_Date = DateSerial(2000, 1, 1) Then
+                    If Not IsNull(Ref_Date_Add_Col) Then
+                        Ref_Date = tbl.Fields(Ref_Date_Add_Col).value
+                    End If
+                End If
+                
+                If Ref_Date <> DateSerial(2000, 1, 1) Then
+                    If Ref_Date > DateSerial(Year(Now), Month(Now), 0) Then
+                        Ref_Date = DateSerial(Year(Now), Month(Now), 0)
+                    End If
+                    Ref_Date = DateSerial(Year(Ref_Date), Month(Ref_Date) + 1, 0)
+                    sql = "select fx_rate_eop from fx_rates where ccy_code='" & tbl.Fields("currency_code").value & "' and scenario='Act' and repdate=#" & Month(Ref_Date) & "/" & Day(Ref_Date) & "/" & Year(Ref_Date) & "#"
+                    fx = dbConn.Execute(sql).Fields("fx_rate_eop").value
+                Else
+                '    Debug.Print "No Suitable date found at " & Table_Name & ", " & tbl!id
+                    noDate = noDate + 1
+                End If
+            End If
+            If fx > 0 Then
+                If Nz(tbl.Fields(CCY_Amount_Col).value, 0) <> 0 Then
+                    updEUR_col = updEUR_col + 1
+                    tbl.Fields(EUR_Amount_Col).value = tbl.Fields(CCY_Amount_Col).value / fx
+                    rsUpd.AddNew Array("Table_Name", "R_ID", "Column_Name", "Old_Value", "New_Value", "Upd_Time"), Array(Table_Name, tbl.Fields("ID").value, EUR_Amount_Col, 0, tbl.Fields(CCY_Amount_Col).value / fx, Now())
+                Else
+                    updCCY_col = updCCY_col + 1
+                    tbl.Fields(CCY_Amount_Col).value = tbl.Fields(EUR_Amount_Col).value * fx
+                    rsUpd.AddNew Array("Table_Name", "R_ID", "Column_Name", "Old_Value", "New_Value", "Upd_Time"), Array(Table_Name, tbl.Fields("ID").value, CCY_Amount_Col, 0, tbl.Fields(EUR_Amount_Col).value / fx, Now())
+                End If
+            End If
+            tbl.MoveNext
+        Wend
+        tbl.Close
+        rsMeta.MoveNext
+        If updCCY_id>0 or noDate>0 or updCCY_col>0 or updEUR_col>0 Then
+            dim msg
+            msg = "FX updates results for table " & Table_Name & ":"
+            If updCCY_id>0 Then
+                msg = msg & " column " & CCY_ID_Col & " updated " & updCCY_id & " times;"
+            End If
+            If noDate>0 Then
+                msg = msg & " conversion impossible for " & noDate & "row(s) due to missing " & Ref_Date_Col & ";"
+            End If
+            If updCCY_col>0 Then
+                msg = msg & " " & CCY_Amount_Col & " updated " & updCCY_col & " times;"
+            End If 
+            If updEUR_col>0 Then
+                msg = msg & " " & EUR_Amount_Col & " updated " & updEUR_col & " times;"
+            End If 
+            Log "convertFX", msg, tLog, m_ID
+        End If
+'        Debug.Print Table_Name & " CCY col upd: " & updCCY_id; ", Missing date: " & noDate & ", CCY upd: " & updCCY_col & ", EUR upd: " & updEUR_col
+'        DoEvents
+    Wend
+    rsUpd.Close
+    rsMeta.Close
+
+End Sub

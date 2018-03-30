@@ -219,6 +219,7 @@ Function createReport(report_id, m_ID, condition, Rep_LE)' As Long, m_ID' As Lon
                 rsData.Open sql, dbConn
                 If Err.Number <> 0 Then
                     Log "createReport", "Error running SQL: " & sql, tErr, m_ID
+                    On Error GoTo 0
                     Exit Do
                 End If
                 On Error Goto 0

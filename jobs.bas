@@ -41,6 +41,7 @@ Sub processFiles()
         fileName = rsFiles.Fields("fileName").Value
         Log "processFiles", "Start processing fileName " & fileName, tLog, rsFiles.Fields("m_ID").Value
         Import fileName, rsFiles.Fields("m_ID").Value, Rep_LE, Rep_Date
+        fxConvert rsFiles.Fields("m_ID").Value
         rsFiles.Fields("fileStatus").Value = statusProcessed
         rsFiles.Fields("repLE").Value = Rep_LE
         If Rep_Date <> "" Then

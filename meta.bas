@@ -39,8 +39,8 @@ Sub printMeta()
         sql = Left(sql, Len(sql) - 3) & vbNewLine
 '        sql = Left(sql, Len(sql) - 3) & ");" & vbNewLine
         sql = sql & ");" & vbNewLine
-'        Debug.Print sql
-        outFile.Write sql
+        WScript.Echo sql
+'        outFile.Write sql
       End If
     Next' td
     For Each td In CurrentDb.TableDefs
