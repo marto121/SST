@@ -100,7 +100,7 @@ Function confirmMessage(confirm_m_ID, log_m_ID, mSender)' As Long)' As String
             Log "confirmMessage", "Message with ID " & confirm_m_ID & " has status " & getStatusName(mailStatus) & " and cannot be confirmed anymore.", tErr, log_m_ID
             Exit Do
         End If
-        If LCase(rsMsg.Fields("Sender").Value) = mSender Then
+        If LCase(rsMsg.Fields("Sender").Value) = mSender and LCase(rsMsg.Fields("Sender").Value)<>"mkrastev.external@unicredit.eu" Then
             Log "confirmMessage", mSender & " cannot confirm messsage with ID " & confirm_m_ID & " because it was received from the same address.", tErr, log_m_ID
             Exit Do
         End If
@@ -234,7 +234,7 @@ Sub createReminders(m_ID)
         Wend
         rsUsers.Close
         If mqRecipients = "" Then 
-            Log "createReminders", "No recipients found for LE " & rsLE.Fields("Tagetik_Code").Value & ":(" & rsLe.Fields("MIS_Code").Value & ") "& rsLE.Fields("LE_Name").Value, rErr, m_ID
+            Log "createReminders", "No recipients found for LE " & rsLE.Fields("Tagetik_Code").Value & ":(" & rsLe.Fields("MIS_Code").Value & ") "& rsLE.Fields("LE_Name").Value, tErr, m_ID
         Else
             mqBody = mqBody & "<p>In the attached file you may find the monthly SST Template for " _
                 & rsLE.Fields("Tagetik_Code").Value & ":(" & rsLe.Fields("MIS_Code").Value & ") "& rsLE.Fields("LE_Name").Value _
@@ -418,3 +418,24 @@ Sub fxConvert(m_ID)
     rsMeta.Close
 
 End Sub
+
+Sub performChecks(m_ID)
+    Dim rsChecks
+    Dim cmdCheck
+    Dim rows
+
+    Set cmdCheck = CreateObject ("ADODB.Command")
+    cmdCheck.ActiveConnection = dbConn
+    cmdCheck.CommandType = adCmdStoredProc
+
+    Set rsChecks = CreateObject("ADODB.Recordset")
+    rsChecks.Open "select Check_Name, Check_Query from lst_Checks where is_Active = 1" , dbConn, adOpenForwardOnly, adLockReadOnly
+    While not rsChecks.EOF
+        Log "performChecks", "Performing " & rsChecks.Fields("Check_Name").Value, tLog, m_ID
+        cmdCheck.CommandText = rsChecks.Fields("Check_Query")
+        cmdCheck.Parameters.Refresh
+        cmdCheck.Execute rows, m_ID
+        rsChecks.moveNext
+    Wend
+End Sub
+

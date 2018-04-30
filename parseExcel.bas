@@ -124,6 +124,10 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                             debug = debug & "key: " & key & ",lkp:" & lookup & ", value: " & value &";"
                         ElseIf dstTable.key(key) = 99 Then ' Special case for Rep_Date
                             value = DateSerial(Left(Rep_Date, 4), Right(Rep_Date, 2) + 1, 0)
+                        ElseIf dstTable.key(key) = 98 Then ' Special case for RowNum
+                            value = r
+                        ElseIf dstTable.key(key) = 97 Then ' Special case for RowNum
+                            value = Rep_LE
                         Else
                             value = Trim(sh.Cells(r, dstTable.key(key)).value)
                         End If
@@ -131,6 +135,8 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                         If value = "" Then
                             If InStr(key, "Date") > 0 Then
                                 value = CDate("1.1.2000")
+                            ElseIf key="Sale_ID" Then ' Set default value for Sale ID @Exception
+                                value = 0
                             Else
                                 Log "ImportFile", "Invalid value: " & sh.Cells(r, dstTable.key(key)).value & " in row: " & r & ", key column: " & key & ". Row not imported!", tErr, m_ID
                                 Exit Do
@@ -206,6 +212,10 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                             End If
                         ElseIf dstTable.cols(col) = 99 Then ' Special case for Rep_Date
                             value = DateSerial(Left(Rep_Date, 4), Right(Rep_Date, 2) + 1, 0)
+                        ElseIf dstTable.cols(col) = 98 Then ' Special case for RowNum
+                            value = r
+                        ElseIf dstTable.cols(col) = 97 Then ' Special case for RowNum
+                            value = Rep_LE
                         Else
                             On Error Resume Next
                             value = "Error"

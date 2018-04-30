@@ -160,7 +160,16 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
             rs.Close
             ' check for command in Subject
             If Left(Trim(mSubject),9) = "reqReport" Then
-                Log "prepareAnswer", "Detected ""reqReport"" command. A template will be generated.", tLog, m_ID
+                Dim rName
+                Dim rID
+                If Left(Trim(mSubject),13) = "reqReportFull" then
+                    rName = "reqReportFull"
+                    rID=2 ' Full report
+                Else
+                    rName = "reqReport"
+                    rID=1 ' Report with only final Rentals/Appraisals/Insurances
+                End If
+                Log "prepareAnswer", "Detected """ & rName & """ command. A template will be generated.", tLog, m_ID
                 Dim sel
                 sel = ""
                 If InStr(mSubject, ":") > 0 Then
@@ -181,7 +190,7 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                     End If
                     On Error GoTo 0
                 End If
-                attachment = createReport ( 1, m_ID, "where Left(NPE_Code, 2) in (" & countryList & ")" & sel, Rep_LE)
+                attachment = createReport ( rID, m_ID, "where Left(NPE_Code, 2) in (" & countryList & ")" & sel, Rep_LE)
                 If attachment <> "" Then
                     mqAttachments = attachment
                 End If
@@ -191,7 +200,7 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                 Log "prepareAnswer", "No command found in E-mail subject", tLog, m_ID
             End If
 
-            rs.Open "select max(repLE) as repLE, max(repDate) as repDate, max(Confirm_Date) as Confirm_Date, count(*) As cnt from File_Log left join calendar on file_log.repDate = calendar.rep_date where m_ID =" &  m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
+            rs.Open "select max(repLE) as repLE_, max(repDate) as repDate, max(Confirm_Date) as Confirm_Date, count(*) As cnt from File_Log left join calendar on file_log.repDate = calendar.rep_date where m_ID =" &  m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
             If rs.Fields("cnt").Value > 0 Then
                 attachment = createChangeReport_Template(m_ID)
                 Dim rsRoles
@@ -206,7 +215,7 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                     End If
                     rsRoles.MoveNext
                 Wend
-                mailText = mailText & "<p>" & dbConn.Execute("select FullName from Users where email='" & mSender & "'").Fields("FullName").Value & " has sent data to the SST for " & rs.Fields("repLE").Value & " as of " & rs.Fields("repDate").Value & ". "
+                mailText = mailText & "<p>" & dbConn.Execute("select FullName from Users where email='" & mSender & "'").Fields("FullName").Value & " has sent data to the SST for " & rs.Fields("repLE_").Value & " as of " & rs.Fields("repDate").Value & ". "
                 mailText = mailText & "In the attachment you may find the submitted report, highlighting the changes made. "
                 mailText = mailText & "In the log below you may see all the messages generated during processing the file. "
                 mailText = mailText & "Please have a look and if you find the data satisfactory, answer to this E-Mail with OK in the message body."

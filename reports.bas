@@ -390,7 +390,7 @@ Function printCells_Template(rsData, sh, m_ID, fieldList)
             For df = 0 to UBound(destFieldArray)
                 If Trim(LCase(destFieldArray(df))) = LCase(replace(fn,"new_","")) Then
                     destCols(f) = df + 1
-                    Wscript.Echo "Field " & fn & " goes to column " & df + 1
+'                    Wscript.Echo "Field " & fn & " goes to column " & df + 1
                 End If
             Next
             If LCase(Left(fn, 4)) = "old_" or (not isEmptySheet) Then ' The second check is for existence of template
