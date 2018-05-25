@@ -148,12 +148,8 @@ Function confirmMessage(confirm_m_ID, log_m_ID, mSender)' As Long)' As String
 
             rst.MoveNext
         Wend
-        cmdData.CommandText = "upd_old_Linked_Mails_Reject"
-        cmdData.Parameters.Refresh
-        cmdData.Execute rows, confirm_m_ID
-        If rows>0 Then
-            Log "confirmMessage", rows & " previous data mails rejected due to related data in currently confirmed message.", tLog, log_m_ID
-        End If
+
+        performUpdates confirm_m_ID, log_m_ID
 
         rsMsg.Fields("mailStatus").Value = statusConfirmed
         rsMsg.Update
@@ -416,6 +412,29 @@ Sub fxConvert(m_ID)
     Wend
     rsUpd.Close
     rsMeta.Close
+
+End Sub
+
+Sub performUpdates(confirm_m_ID, log_m_ID)
+    Dim rsUpdates
+    Dim cmdUpdate
+    Dim rows
+
+    Set cmdUpdate = CreateObject ("ADODB.Command")
+    cmdUpdate.ActiveConnection = dbConn
+    cmdUpdate.CommandType = adCmdStoredProc
+
+    Set rsUpdates = CreateObject("ADODB.Recordset")
+    rsUpdates.Open "select Update_Name, Update_Query from lst_Updates where is_Active = 1" , dbConn, adOpenForwardOnly, adLockReadOnly
+    While not rsUpdates.EOF
+        cmdUpdate.CommandText = rsUpdates.Fields("Update_Query")
+        cmdUpdate.Parameters.Refresh
+        cmdUpdate.Execute rows, confirm_m_ID
+        If rows>0 Then
+            Log "performUpdates", rsUpdates.Fields("Update_Name").Value & rows & " row(s) affected.", tLog, log_m_ID
+        End If
+        rsUpdates.moveNext
+    Wend
 
 End Sub
 

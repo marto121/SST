@@ -220,6 +220,17 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                 mailText = mailText & "In the log below you may see all the messages generated during processing the file. "
                 mailText = mailText & "Please have a look and if you find the data satisfactory, answer to this E-Mail with OK in the message body."
                 mailText = mailText & "If you have any concerns for the quality of delivered data, please contact the sender and request corerctions. "
+
+                With dbConn.Execute("select Descr, Color, Count(*) as Cnt FROM Nom_Log_Types INNER JOIN sst_log ON Nom_Log_Types.ID = sst_log.Log_Type where mail_id=" & m_ID & " and log_type in (1,2) group by Descr, Color")
+                    If Not .EOF Then
+                        mailText = mailText & "<p>Please consider the Summary of Errors below:<br><table cellspacing='0' cellpadding='1' border='1'><tr><th>Message Type</th><th>Nr Messages</th></tr>"
+                        While not .EOF
+                            mailText = mailText & "<tr bgcolor='" & .Fields("Color").Value & "'><td>" & .Fields("Descr").Value & "</td><td align='right'>" & .Fields("Cnt").Value & "</td></tr>"
+                            .MoveNext
+                        Wend
+                        mailText = mailText & "</table>"
+                    End If
+                End With
                 mailText = mailText & "<p>The deadline for confirming the data for " & rs.Fields("repDate").Value & " is <u>" & rs.Fields("Confirm_Date").Value & "</u>."
                 mailText = mailText & "<p>Regards, SST"
                 mqRecipients = mqRecipients & addRecipients

@@ -269,7 +269,7 @@ Function createHTMLLog(m_ID)
         rs.MoveNext
     Wend
     rs.Close
-    sHTML = "<table cellspacing=""0"" cellpadding=""1"" border=""1"">" & vbNewLine & _
+    sHTML = "<table cellspacing='0' cellpadding='1' border='1'>" & vbNewLine & _
         "<thead><th>Date</th><th>Message</th></thead>" & vbNewLine & _
         tBody & vbNewLine & "</table>"
     createHTMLLog = sHTML

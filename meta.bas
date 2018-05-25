@@ -34,6 +34,9 @@ Sub printMeta()
                 sql = sql & "(" & f.Size & ")"
             Else
             End If
+            If f.DefaultValue<>Null Then
+                sql = sql & " default " & f.DefaultValue
+            End If
             sql = sql & "," & vbNewLine
         Next' f
         sql = Left(sql, Len(sql) - 3) & vbNewLine
