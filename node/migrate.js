@@ -2,8 +2,6 @@
 
 
  
-var connectionString = config.SST_pg_conn;
-
 var constants = require('./constants')
 var config = require('./config')
 var fs = require('fs')

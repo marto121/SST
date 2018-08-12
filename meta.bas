@@ -40,7 +40,7 @@ Sub printMeta()
 '        sql = Left(sql, Len(sql) - 3) & ");" & vbNewLine
         sql = sql & ");" & vbNewLine
         WScript.Echo sql
-'        outFile.Write sql
+        outFile.Write sql
       End If
     Next' td
     For Each td In CurrentDb.TableDefs
