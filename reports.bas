@@ -269,7 +269,7 @@ Function createHTMLLog(m_ID)
         rs.MoveNext
     Wend
     rs.Close
-    sHTML = "<table cellspacing=""0"" cellpadding=""1"" border=""1"">" & vbNewLine & _
+    sHTML = "<table cellspacing='0' cellpadding='1' border='1'>" & vbNewLine & _
         "<thead><th>Date</th><th>Message</th></thead>" & vbNewLine & _
         tBody & vbNewLine & "</table>"
     createHTMLLog = sHTML
@@ -390,7 +390,7 @@ Function printCells_Template(rsData, sh, m_ID, fieldList)
             For df = 0 to UBound(destFieldArray)
                 If Trim(LCase(destFieldArray(df))) = LCase(replace(fn,"new_","")) Then
                     destCols(f) = df + 1
-                    Wscript.Echo "Field " & fn & " goes to column " & df + 1
+'                    Wscript.Echo "Field " & fn & " goes to column " & df + 1
                 End If
             Next
             If LCase(Left(fn, 4)) = "old_" or (not isEmptySheet) Then ' The second check is for existence of template

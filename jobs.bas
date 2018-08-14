@@ -34,6 +34,10 @@ Sub processFiles()
     Dim rsFiles
     Dim Rep_LE
     Dim Rep_Date
+    
+    Dim m_IDs
+    Set m_IDs = CreateObject("Scripting.Dictionary")
+
     Set rsFiles = CreateObject("ADODB.Recordset")
     rsFiles.Open "select * from File_Log where fileStatus=" & statusReceived, dbConn, adOpenForwardOnly, adLockOptimistic
     While Not rsFiles.EOF
@@ -48,10 +52,17 @@ Sub processFiles()
             rsFiles.Fields("repDate").Value = DateSerial(left(Rep_Date,4), right(rep_date,2)+1, 0)
         End If
         rsFiles.Update
+        m_IDs(rsFiles.Fields("m_ID").Value)=rsFiles.Fields("m_ID").Value
         rsFiles.moveNext
     Wend
     rsFiles.Close
     set rsFiles = Nothing
+    Dim m_ID
+    WScript.Echo "Debug 1"
+    For Each m_ID in m_IDs.Keys
+        WScript.Echo "Debug " & m_ID
+        performChecks m_ID
+    Next
 End Sub
 
 Sub createReplies()

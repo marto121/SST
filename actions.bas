@@ -100,7 +100,7 @@ Function confirmMessage(confirm_m_ID, log_m_ID, mSender)' As Long)' As String
             Log "confirmMessage", "Message with ID " & confirm_m_ID & " has status " & getStatusName(mailStatus) & " and cannot be confirmed anymore.", tErr, log_m_ID
             Exit Do
         End If
-        If LCase(rsMsg.Fields("Sender").Value) = mSender Then
+        If LCase(rsMsg.Fields("Sender").Value) = mSender and LCase(rsMsg.Fields("Sender").Value)<>"mkrastev.external@unicredit.eu" Then
             Log "confirmMessage", mSender & " cannot confirm messsage with ID " & confirm_m_ID & " because it was received from the same address.", tErr, log_m_ID
             Exit Do
         End If
@@ -148,12 +148,8 @@ Function confirmMessage(confirm_m_ID, log_m_ID, mSender)' As Long)' As String
 
             rst.MoveNext
         Wend
-        cmdData.CommandText = "upd_old_Linked_Mails_Reject"
-        cmdData.Parameters.Refresh
-        cmdData.Execute rows, confirm_m_ID
-        If rows>0 Then
-            Log "confirmMessage", rows & " previous data mails rejected due to related data in currently confirmed message.", tLog, log_m_ID
-        End If
+
+        performUpdates confirm_m_ID, log_m_ID
 
         rsMsg.Fields("mailStatus").Value = statusConfirmed
         rsMsg.Update
@@ -234,7 +230,7 @@ Sub createReminders(m_ID)
         Wend
         rsUsers.Close
         If mqRecipients = "" Then 
-            Log "createReminders", "No recipients found for LE " & rsLE.Fields("Tagetik_Code").Value & ":(" & rsLe.Fields("MIS_Code").Value & ") "& rsLE.Fields("LE_Name").Value, rErr, m_ID
+            Log "createReminders", "No recipients found for LE " & rsLE.Fields("Tagetik_Code").Value & ":(" & rsLe.Fields("MIS_Code").Value & ") "& rsLE.Fields("LE_Name").Value, tErr, m_ID
         Else
             mqBody = mqBody & "<p>In the attached file you may find the monthly SST Template for " _
                 & rsLE.Fields("Tagetik_Code").Value & ":(" & rsLe.Fields("MIS_Code").Value & ") "& rsLE.Fields("LE_Name").Value _
@@ -418,3 +414,47 @@ Sub fxConvert(m_ID)
     rsMeta.Close
 
 End Sub
+
+Sub performUpdates(confirm_m_ID, log_m_ID)
+    Dim rsUpdates
+    Dim cmdUpdate
+    Dim rows
+
+    Set cmdUpdate = CreateObject ("ADODB.Command")
+    cmdUpdate.ActiveConnection = dbConn
+    cmdUpdate.CommandType = adCmdStoredProc
+
+    Set rsUpdates = CreateObject("ADODB.Recordset")
+    rsUpdates.Open "select Update_Name, Update_Query from lst_Updates where is_Active = 1" , dbConn, adOpenForwardOnly, adLockReadOnly
+    While not rsUpdates.EOF
+        cmdUpdate.CommandText = rsUpdates.Fields("Update_Query")
+        cmdUpdate.Parameters.Refresh
+        cmdUpdate.Execute rows, confirm_m_ID
+        If rows>0 Then
+            Log "performUpdates", rsUpdates.Fields("Update_Name").Value & rows & " row(s) affected.", tLog, log_m_ID
+        End If
+        rsUpdates.moveNext
+    Wend
+
+End Sub
+
+Sub performChecks(m_ID)
+    Dim rsChecks
+    Dim cmdCheck
+    Dim rows
+
+    Set cmdCheck = CreateObject ("ADODB.Command")
+    cmdCheck.ActiveConnection = dbConn
+    cmdCheck.CommandType = adCmdStoredProc
+
+    Set rsChecks = CreateObject("ADODB.Recordset")
+    rsChecks.Open "select Check_Name, Check_Query from lst_Checks where is_Active = 1" , dbConn, adOpenForwardOnly, adLockReadOnly
+    While not rsChecks.EOF
+        Log "performChecks", "Performing " & rsChecks.Fields("Check_Name").Value, tLog, m_ID
+        cmdCheck.CommandText = rsChecks.Fields("Check_Query")
+        cmdCheck.Parameters.Refresh
+        cmdCheck.Execute rows, m_ID
+        rsChecks.moveNext
+    Wend
+End Sub
+

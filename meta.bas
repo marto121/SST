@@ -34,6 +34,9 @@ Sub printMeta()
                 sql = sql & "(" & f.Size & ")"
             Else
             End If
+            If f.DefaultValue<>Null Then
+                sql = sql & " default " & f.DefaultValue
+            End If
             sql = sql & "," & vbNewLine
         Next' f
         sql = Left(sql, Len(sql) - 3) & vbNewLine
@@ -206,7 +209,7 @@ Sub printMeta()
             sql = left(sql, de+6) & right(sql, len(sql)-fr+1)
         end if
         sql = Replace(sql, "DELETE *", "DELETE")
-        sql = replaceIIF(sql)
+        'sql = replaceIIF(sql)
         sql = replaceIsNull(sql)
         sql = Replace(sql, "year(", "extract(year from ")
         sql = Replace(sql, "#1/1/2000#", "'2000-1-1'")
@@ -252,6 +255,7 @@ Sub createInserts()
     Dim sel_sql' As String
     Dim grp_sql' As String
     Dim db' As Database
+    Dim keys
     Set db = CurrentDb
     
     Set rs = db.OpenRecordset("meta_updatable_tables")
@@ -269,7 +273,17 @@ Sub createInserts()
             upd_sql = upd_sql & "   inner join " & rs.Fields("parent_table") & " as new_parent on new_parent." & rs.Fields("parent_Code") & "=old_parent." & rs.Fields("parent_Code") & ")" & vbNewLine
             upd_sql = upd_sql & "   inner join " & rs.Fields("table_name") & " as dw_tab &ON" & vbNewLine
         Else
-            upd_sql = upd_sql & " inner join " & rs.Fields("table_name") & " as dw_tab on dw_tab." & rs.Fields("Key") & "=new_tab." & rs.Fields("Key") & "))" & vbNewLine
+            upd_sql = upd_sql & " inner join " & rs.Fields("table_name") & " as dw_tab"
+            keys = Split(rs.Fields("Key"), ",")
+            For c = 0 To UBound(keys)
+                If c = 0 Then
+                    upd_sql = upd_sql & " on "
+                Else
+                    upd_sql = upd_sql & " and "
+                End IF
+                upd_sql = upd_sql & "dw_tab." & keys(c) & "=new_tab." & keys(c)
+            Next
+            upd_sql = upd_sql & "))" & vbNewLine
         End If
         upd_sql = upd_sql & "SET "
         
@@ -290,7 +304,7 @@ Sub createInserts()
                     grp_sql = grp_sql & " parent." & rs.Fields("parent_Code") & ", "
                 Else
                     sel_sql = sel_sql & " max(iif(tab.m_id=" & base_m_ID & ", parent." & rs.Fields("parent_Code") & ",null)) as old_" & rs.Fields("parent_Code") & ", max(iif(tab.m_id<>" & base_m_ID & ", parent." & rs.Fields("parent_Code") & ",null)) as new_" & rs.Fields("parent_Code") & ", "
-                    upd_sql = upd_sql & "dw_tab." & rs.Fields("parent_ID") & "=new_tab." & rs.Fields("parent_ID") & ", "
+                    upd_sql = upd_sql & "dw_tab." & rs.Fields("parent_ID") & "=new_parent.id, "
                 End If
                 If rs.Fields("Add_Fields") <> "" Then
                     'sel_sql = sel_sql & " parent." & rs.Fields("Add_Fields") & ", "
@@ -368,7 +382,6 @@ Sub createInserts()
         If rs.Fields("Key") <> "" Then
  '           sel_sql = sel_sql & "group by "
             ins_sql = ins_sql & "   and not exists (select 1 from " & rs.Fields("table_name") & " as dw_tab where dw_tab.m_id = " & base_m_ID & vbNewLine
-            Dim keys
             keys = Split(rs.Fields("Key"), ",")
             For c = 0 To UBound(keys)
                 If c = 0 Then
@@ -413,10 +426,12 @@ Sub createInserts()
         db.QueryDefs.Delete "upd_" & rs.Fields("table_name")
         db.QueryDefs.Delete "ins_" & rs.Fields("table_name")
         On Error GoTo 0
+        wscript.echo sel_sql
         Set qd = db.CreateQueryDef("sel_" & rs.Fields("table_name"), sel_sql)
         If rs.Fields("Del_Key") = "yes" Then
             Set qd = db.CreateQueryDef("del_" & rs.Fields("table_name"), del_sql)
         Else
+            wscript.echo upd_sql
             Set qd = db.CreateQueryDef("upd_" & rs.Fields("table_name"), upd_sql)
         End If
         Set qd = db.CreateQueryDef("ins_" & rs.Fields("table_name"), ins_sql)

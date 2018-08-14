@@ -124,6 +124,10 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                             debug = debug & "key: " & key & ",lkp:" & lookup & ", value: " & value &";"
                         ElseIf dstTable.key(key) = 99 Then ' Special case for Rep_Date
                             value = DateSerial(Left(Rep_Date, 4), Right(Rep_Date, 2) + 1, 0)
+                        ElseIf dstTable.key(key) = 98 Then ' Special case for RowNum
+                            value = r
+                        ElseIf dstTable.key(key) = 97 Then ' Special case for Legal entity
+                            value = Rep_LE
                         Else
                             value = Trim(sh.Cells(r, dstTable.key(key)).value)
                         End If
@@ -131,6 +135,8 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                         If value = "" Then
                             If InStr(key, "Date") > 0 Then
                                 value = CDate("1.1.2000")
+                            ElseIf key="Sale_ID" Then ' Set default value for Sale ID @Exception
+                                value = 0
                             Else
                                 Log "ImportFile", "Invalid value: " & sh.Cells(r, dstTable.key(key)).value & " in row: " & r & ", key column: " & key & ". Row not imported!", tErr, m_ID
                                 Exit Do
@@ -196,6 +202,9 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
 '                                lookup = m_ID & ":" & lookup
 '                            End If
                             If lookup <> "" Then
+                                If Left(dstTable.codeLists(col), 8) = "NPE_List" Then
+                                    lookup = Left(lookup,8) '@Exception
+                                End If
                                 value = codeLists(dstTable.codeLists(col))(LCase(lookup))
 '                                wscript.echo "lookup:" & lookup & ", value: " & value
                                 If IsEmpty(value) And lookup <> "" Then
@@ -206,6 +215,10 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                             End If
                         ElseIf dstTable.cols(col) = 99 Then ' Special case for Rep_Date
                             value = DateSerial(Left(Rep_Date, 4), Right(Rep_Date, 2) + 1, 0)
+                        ElseIf dstTable.cols(col) = 98 Then ' Special case for RowNum
+                            value = r
+                        ElseIf dstTable.cols(col) = 97 Then ' Special case for Legal entity
+                            value = Rep_LE
                         Else
                             On Error Resume Next
                             value = "Error"
@@ -257,7 +270,7 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                             or (tbl = "Asset_History" And column_name = "Asset_Code" And codeLists.Exists(tbl & ":" & column_name)) _
                             Or (tbl = "NPE_List" And column_name = "NPE_Code" And codeLists.Exists(tbl & ":" & column_name)) _
                             Or (tbl = "NPE_History" And column_name = "NPE_Code" And codeLists.Exists(tbl & ":" & column_name)) _
-                            ) Then ' add manually the subasset if not existing
+                            ) Then ' @Exception add manually the subasset if not existing
                                 If codeLists(tbl & ":" & column_name).Exists(LCase(value)) Then
                                     codeLists(tbl & ":" & column_name)(LCase(value)) = rs.fields("ID").value
 '                                    Wscript.Echo "Change ID to: " & LCase(value) & rs.fields("ID").value
@@ -429,7 +442,7 @@ End Function
 
 Function addCode(columns, lookup, m_ID)' As String, lookup' As String)' As Long
     Dim rs' As Recordset
-    Dim cols, s
+    Dim cols, s, NPE_ID
     cols = Split(columns, ":")
     Set rs = CreateObject("ADODB.Recordset")
     rs.Open cols(0), dbConn, adOpenDynamic, adLockOptimistic
