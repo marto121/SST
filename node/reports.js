@@ -93,7 +93,7 @@ async function createHTMLLog(m_ID) {
     for (const row of res.rows ) {
         tBody += "<tr bgcolor='" + row.color + "'><td>" + row.log_date + "</td><td>" + row.log_text + "</td></tr>"
     }
-    var sHTML = "<table cellspacing=\"0\" cellpadding=\"1\" border=\"1\">"
+    var sHTML = "<table cellspacing='0' cellpadding='1' border='1'>"
         +"<thead><th>Date</th><th>Message</th></thead>"
         + tBody + "</table>"
     return sHTML

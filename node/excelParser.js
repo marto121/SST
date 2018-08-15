@@ -247,8 +247,10 @@ module.exports = {
     
         def.columns.forEach(function(col) {
             if (col.cond_val=="all"|col.cond_val==cond_val) {
-                if (col.column==98) {
+                if (col.column==97) {
                     params.push(statics.Rep_LE)
+                } else if (col.column==98) {
+                    params.push(r)
                 } else if (col.column==99) {
                     params.push(statics.Rep_Date)
                 } else {
@@ -259,6 +261,7 @@ module.exports = {
                     if (col.key!=null&&ce.v==null) {
                         db.log("Import", "Sheet \"" + def.sheet_name +"\", row " + r + ", column \"" + col.name + "\" can not be empty!", constants.tErr, m_ID)
                     }
+                    if (col.name.toLowerCase()=="sale_id"&&ce.v==null) ce.v=ce.Rep_Date.getFullYear()*100+ce.Rep_Date.getMonth();
                     params.push(ce.v)
                 }
             }
