@@ -2,7 +2,10 @@
 
 
  
+<<<<<<< HEAD
 
+=======
+>>>>>>> 884b33c27587c8dcdb83a1b61e28b2a155cc2c64
 var constants = require('./constants')
 var config = require('./config')
 var fs = require('fs')
