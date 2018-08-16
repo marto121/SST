@@ -43,7 +43,7 @@ Sub printMeta()
 '        sql = Left(sql, Len(sql) - 3) & ");" & vbNewLine
         sql = sql & ");" & vbNewLine
         WScript.Echo sql
-'        outFile.Write sql
+        outFile.Write sql
       End If
     Next' td
     For Each td In CurrentDb.TableDefs
@@ -151,12 +151,14 @@ Sub printMeta()
         sql = sql & "CREATE"
         If LCase(Left(qd.sql, 3)) = "del" Or LCase(Left(qd.sql, 3)) = "ins" Or LCase(Left(qd.sql, 3)) = "upd" _
             or qd.Parameters.Count>0 Then
-            drop = drop & " function if exists " & qd.Name & ";" & vbNewLine
+            drop = drop & " function if exists " & qd.Name & "( " 
             sql = sql & " function " & qd.Name & "( "
             Dim p' As Parameter
             For Each p In qd.Parameters
                 sql = sql & Replace(Replace(p.Name, "[:", "p_"), "]", "") & " " & getFieldType(p.Type) & ","
+                drop = drop & Replace(Replace(p.Name, "[:", "p_"), "]", "") & " " & getFieldType(p.Type) & ","
             Next' p
+            drop = Left(drop, Len(drop) - 1) & ");"& vbNewLine
             sql = Left(sql, Len(sql) - 1) & ") RETURNS "
             if LCase(Left(qd.sql,3)) = "sel" Then
                 sql = sql & "table ("
@@ -209,7 +211,7 @@ Sub printMeta()
             sql = left(sql, de+6) & right(sql, len(sql)-fr+1)
         end if
         sql = Replace(sql, "DELETE *", "DELETE")
-        'sql = replaceIIF(sql)
+        sql = replaceIIF(sql)
         sql = replaceIsNull(sql)
         sql = Replace(sql, "year(", "extract(year from ")
         sql = Replace(sql, "#1/1/2000#", "'2000-1-1'")

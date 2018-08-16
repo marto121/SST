@@ -193,7 +193,7 @@ Function createReport(report_id, m_ID, condition, Rep_LE)' As Long, m_ID' As Lon
                 Set wb = ex.Workbooks.Open (templateFileName, False)
                 On Error Resume Next
                 wb.Names("Rep_LE").RefersToRange.Value = Rep_LE
-                wb.Names("Rep_Date").RefersToRange.Value = Year(DateSerial(Year(Now),Month(Now),0))*100 + Month(DateSerial(Year(Now),Month(Now),0))
+                wb.Names("Rep_Date").RefersToRange.Value = Year(DateSerial(Year(Now+3),Month(Now+3),0))*100 + Month(DateSerial(Year(Now+3),Month(Now+3),0))
                 On Error Goto 0
             Else
                 Log "createReport", "Template file name " & templateFileName & " not found! Creating empty file.", tWar, m_ID
@@ -241,9 +241,10 @@ Function createReport(report_id, m_ID, condition, Rep_LE)' As Long, m_ID' As Lon
         Loop
         Dim fileName' As String
         For f = 0 To 9999
-            fileName = SST_Att_Path_Out & "\" & report_code & "_" & string(4-len(f),"0") & f & ".xlsx"
+            fileName = SST_Att_Path_Out & "" & report_code & "_" & string(4-len(f),"0") & f & ".xlsx"
             If Not fso.FileExists(fileName) Then Exit For
         Next' f
+        Log "createReport", "Saving file name: " & fileName, tLog, m_ID
         wb.SaveAs fileName', 50 'xlExcel12
         createReport = fileName
         wb.Close

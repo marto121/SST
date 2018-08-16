@@ -262,6 +262,8 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                         Else
                             If dstTable.mandatoryCols.Exists(col) Then
                                 Log "Import", "Missing data in mandatory column: " & column_name & ". Sheet: " & sh.Name & ", Row: " & r , tWar, m_ID
+                            Else
+                                rs.Fields(column_name).value = Null
                             End If
                         End If
                         

@@ -369,7 +369,15 @@ Sub fxConvert(m_ID)
                     End If
                     Ref_Date = DateSerial(Year(Ref_Date), Month(Ref_Date) + 1, 0)
                     sql = "select fx_rate_eop from fx_rates where ccy_code='" & tbl.Fields("currency_code").value & "' and scenario='Act' and repdate=#" & Month(Ref_Date) & "/" & Day(Ref_Date) & "/" & Year(Ref_Date) & "#"
-                    fx = dbConn.Execute(sql).Fields("fx_rate_eop").value
+                    Dim rsFXRate
+                    With dbConn.Execute(sql)
+                        If .EOF Then
+                            Log "convertFX", "Cannot find FX Rate for Date " & Ref_Date & ", table " & Table_Name, tWar, m_ID
+                        Else
+                            fx = .Fields("fx_rate_eop").value
+                        End If
+                        .Close
+                    End With
                 Else
                 '    Debug.Print "No Suitable date found at " & Table_Name & ", " & tbl!id
                     noDate = noDate + 1
@@ -397,7 +405,7 @@ Sub fxConvert(m_ID)
                 msg = msg & " column " & CCY_ID_Col & " updated " & updCCY_id & " times;"
             End If
             If noDate>0 Then
-                msg = msg & " conversion impossible for " & noDate & "row(s) due to missing " & Ref_Date_Col & ";"
+                msg = msg & " conversion impossible for " & noDate & " row(s) due to missing " & Ref_Date_Col & ";"
             End If
             If updCCY_col>0 Then
                 msg = msg & " " & CCY_Amount_Col & " updated " & updCCY_col & " times;"

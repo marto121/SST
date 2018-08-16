@@ -6,7 +6,8 @@
   "dependencies": {
     "express": "^4.16.2",
     "node-adodb": "^4.0.7",
-    "node-sspi": "^0.2.2"
+    "node-sspi": "^0.2.2",
+    "pg": "^7.4.3"
   },
   "devDependencies": {},
   "scripts": {

@@ -192,7 +192,7 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                 End If
                 attachment = createReport ( rID, m_ID, "where Left(NPE_Code, 2) in (" & countryList & ")" & sel, Rep_LE)
                 If attachment <> "" Then
-                    mqAttachments = attachment
+                    mqAttachments = attachment & ";"
                 End If
             ElseIf Left(Trim(mSubject),12) = "reqReminders" and InStr(LCase(SST_Log_Recipients), LCase(mSender))>0 Then
                 createReminders m_ID
@@ -200,44 +200,66 @@ Sub prepareAnswer(m_ID, mSender, mSubject)
                 Log "prepareAnswer", "No command found in E-mail subject", tLog, m_ID
             End If
 
-            rs.Open "select max(repLE) as repLE_, max(repDate) as repDate, max(Confirm_Date) as Confirm_Date, count(*) As cnt from File_Log left join calendar on file_log.repDate = calendar.rep_date where m_ID =" &  m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
+            rs.Open "select max(repLE) as repLE_, max(repDate) as repDate, max(Send_Date) as Send_Date, max(Confirm_Date) as Confirm_Date, count(*) As cnt from File_Log left join calendar on file_log.repDate = calendar.rep_date where fileType='SST' and m_ID =" &  m_ID, dbConn, adOpenForwardOnly, adLockReadOnly
             If rs.Fields("cnt").Value > 0 Then
                 attachment = createChangeReport_Template(m_ID)
-                Dim rsRoles
-                Set rsRoles = CreateObject("ADODB.Recordset")
-                rsRoles.Open "select * from vw_Mail_Roles where m_ID = " & m_ID, dbConn, adOpenDynamic, adLockReadOnly
-                While Not rsRoles.EOF
-                    If (rsRoles.Fields("Role").Value And roleConfirm) = 2 Then
-                        If InStr(LCase(SST_Log_Recipients),LCase(rsRoles.Fields("EMail").Value)) = 0 Then
-                            addRecipients = addRecipients & ";" & rsRoles.Fields("EMail").Value
-                            mailText = mailText & "Dear " & dbConn.Execute("select FirstName from Users where EMail = '" & rsRoles.Fields("EMail").Value & "'").Fields("FirstName").Value & ",<BR>" 
-                        End If
-                    End If
-                    rsRoles.MoveNext
-                Wend
-                mailText = mailText & "<p>" & dbConn.Execute("select FullName from Users where email='" & mSender & "'").Fields("FullName").Value & " has sent data to the SST for " & rs.Fields("repLE_").Value & " as of " & rs.Fields("repDate").Value & ". "
-                mailText = mailText & "In the attachment you may find the submitted report, highlighting the changes made. "
-                mailText = mailText & "In the log below you may see all the messages generated during processing the file. "
-                mailText = mailText & "Please have a look and if you find the data satisfactory, answer to this E-Mail with OK in the message body."
-                mailText = mailText & "If you have any concerns for the quality of delivered data, please contact the sender and request corerctions. "
-
-                With dbConn.Execute("select Descr, Color, Count(*) as Cnt FROM Nom_Log_Types INNER JOIN sst_log ON Nom_Log_Types.ID = sst_log.Log_Type where mail_id=" & m_ID & " and log_type in (1,2) group by Descr, Color")
+                Dim errorsText : errorsText = ""
+                Dim hasErrors : hasErrors = 0
+                Dim senderName : senderName = dbConn.Execute("select FullName from Users where email='" & mSender & "'").Fields("FullName").Value
+                With dbConn.Execute("select Log_Type, Descr, Color, Count(*) as Cnt FROM Nom_Log_Types INNER JOIN sst_log ON Nom_Log_Types.ID = sst_log.Log_Type where mail_id=" & m_ID & " and log_type in (1,2) group by Log_Type, Descr, Color")
                     If Not .EOF Then
-                        mailText = mailText & "<p>Please consider the Summary of Errors below:<br><table cellspacing='0' cellpadding='1' border='1'><tr><th>Message Type</th><th>Nr Messages</th></tr>"
+                        errorsText = errorsText & "<p>Please consider the Summary of Errors below:<br><table cellspacing='0' cellpadding='1' border='1'><tr><th>Message Type</th><th>Nr Messages</th></tr>"
                         While not .EOF
-                            mailText = mailText & "<tr bgcolor='" & .Fields("Color").Value & "'><td>" & .Fields("Descr").Value & "</td><td align='right'>" & .Fields("Cnt").Value & "</td></tr>"
+                            errorsText = errorsText & "<tr bgcolor='" & .Fields("Color").Value & "'><td>" & .Fields("Descr").Value & "</td><td align='right'>" & .Fields("Cnt").Value & "</td></tr>"
+                            If .Fields("Log_Type").Value = 2 and .Fields("Cnt").Value > 0 Then
+                                hasErrors = .Fields("Cnt").Value
+                            End If
                             .MoveNext
                         Wend
-                        mailText = mailText & "</table>"
+                        errorsText = errorsText & "</table>"
                     End If
                 End With
+                
+                If hasErrors = 0 Then
+                    Dim rsRoles
+                    Set rsRoles = CreateObject("ADODB.Recordset")
+                    rsRoles.Open "select * from vw_Mail_Roles where m_ID = " & m_ID, dbConn, adOpenDynamic, adLockReadOnly
+                    While Not rsRoles.EOF
+                        If (rsRoles.Fields("Role").Value And roleConfirm) = 2 Then
+                            If InStr(LCase(SST_Log_Recipients),LCase(rsRoles.Fields("EMail").Value)) = 0 Then
+                                addRecipients = addRecipients & ";" & rsRoles.Fields("EMail").Value
+                                mailText = mailText & "Dear " & dbConn.Execute("select FirstName from Users where EMail = '" & rsRoles.Fields("EMail").Value & "'").Fields("FirstName").Value & ",<BR>" 
+                            End If
+                        End If
+                        rsRoles.MoveNext
+                    Wend
+                    rsRoles.Close
+                    mailText = mailText & "<p>" & senderName & " has sent data to the SST for " & rs.Fields("repLE_").Value & " as of " & rs.Fields("repDate").Value & ". "
+                Else
+                    mailText = mailText & "Dear " & senderName & ",<BR>"
+                    mailText = mailText & "<p>You have sent data to the SST for " & rs.Fields("repLE_").Value & " as of " & rs.Fields("repDate").Value & ". "
+                End If
+
+                mailText = mailText & "In the attachment you may find the change report, highlighting the changes made. "
+                mailText = mailText & "In the log below you may see all the messages generated during processing the file. "
+
+                If hasErrors = 0 Then
+                    mailText = mailText & "Please have a look and if you find the data satisfactory, answer to this E-Mail with OK in the message body."
+                    mailText = mailText & "If you have any concerns for the quality of delivered data, please contact the sender and request corerctions. "
+                    mailText = mailText & errorsText
+                Else
+                    mailText = mailText & "<p><b>As there were " & hasErrors & " errors identified in the file, please correct them and re-submit the file. "
+                    mailText = mailText & "Submissions with errors cannot be accepted!</b>"
+                    mailText = mailText & errorsText
+                    mailText = mailText & "<p>The deadline for sending the data for " & rs.Fields("repDate").Value & " is <u>" & rs.Fields("Send_Date").Value & "</u>."
+                End If
+
                 mailText = mailText & "<p>The deadline for confirming the data for " & rs.Fields("repDate").Value & " is <u>" & rs.Fields("Confirm_Date").Value & "</u>."
                 mailText = mailText & "<p>Regards, SST"
                 mqRecipients = mqRecipients & addRecipients
-                rsRoles.Close
             Else
                 attachment = ""
-                Log "prepareAnswer", "No Attachments found in E-mail", tLog, m_ID
+                Log "prepareAnswer", "No SST Template Attachments found in E-mail", tLog, m_ID
             End If
 
             If attachment <> "" Then
@@ -262,13 +284,40 @@ Sub queueMail(mqRecipients, mqCC, mqSubject, mqBody, mqAttachments)
 End Sub
 
 Sub processAttachment(oAtt, mCountry, m_ID)' As Outlook.Attachment, mCountry' As String, m_ID' As Long)
+    Dim fileType
+    Dim NPE_ID
+    Dim status
+    status = statusReceived
+    fileType = ""
+    NPE_ID = ""
+    If LCase(Left(oAtt.fileName,3))="bc_" or LCase(Left(oAtt.fileName,3))="ec_" Then
+        fileType = UCase(Left(oAtt.fileName,2))
+        NPE_ID = Right(Left(oAtt.fileName,11),8)
+        With dbConn.Execute("select 1 from NPE_List where m_ID=-1 and NPE_Code='" & NPE_ID & "'")
+            If .EOF Then
+                Log "processMail", "Attachment: " & oAtt.fileName & " looks like a " & fileType & ", but the NPE_ID is not recognized. Please name the file '" & fileType & "_[NPE_ID]' .", tWar, m_ID
+                NPE_ID = ""
+            Else
+                Log "processMail", "Attachment: " & oAtt.fileName & " recognized as " & fileType & " for NPE_ID " & NPE_ID & " and stored.", tWar, m_ID
+            End If
+            .Close
+        End With
+        status = statusProcessed
+    ElseIf LCase(Left(getFileExt(oAtt.fileName), 2)) = "xl" Then
+        fileType="SST"
+        NPE_ID = ""
+    Else
+        Log "processMail", "Attachment: " & oAtt.fileName & " is not an Excel file (*.xl*), Business case (BC_*) or Exit Calculation (EC_*). Skipping ...", tWar, m_ID
+        Exit Sub
+    End If
+
     Dim fileName
     fileName = SST_Att_Path & String(5-len(m_ID),"0") & m_ID & "_" & oAtt.fileName
     oAtt.SaveAsFile fileName
     Dim rsFiles
     Set rsFiles = CreateObject("ADODB.Recordset")
     rsFiles.Open "select * from File_Log", dbConn, adOpenForwardOnly, adLockOptimistic
-    rsFiles.AddNew Array("m_ID", "fileName", "fileStatus"), Array(m_ID, fileName, statusReceived)
+    rsFiles.AddNew Array("m_ID", "fileName", "fileStatus", "fileType", "NPE_ID"), Array(m_ID, fileName, status, fileType, NPE_ID)
     rsFiles.Update
     rsFiles.Close
     set rsFiles = Nothing
