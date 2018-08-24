@@ -1,3 +1,5 @@
+eval((new ActiveXObject('Scripting.FileSystemObject')).OpenTextFile('json2/json2.js', 1).ReadAll());
+
 // Constants
 var olNoFlag = 0
 var olMarkComplete = 5
@@ -5,22 +7,23 @@ var olMail = 43
 var olExchangeUserAddressEntry = 0
 var PR_TRANSPORT_MESSAGE_HEADERS = 'http://schemas.microsoft.com/mapi/proptag/0x007D001E'
 
-var SST_Account_UserName = 'SST_UCTAM@unicredit.eu';
-var SST_MailArch_Path = 'personal\\Test\\processed'
+var SST_Account_UserName = 'UCTAM_SST';
+var SST_MailArch_Path = 'UCTAM_SST@unicredit.eu\\Processed'
 var SST_regBase ='';
 var SST_Account_UserName_Reg = ''
-var SST_MailBox_Path = 'personal\\Test'
+var SST_MailBox_Path = 'UCTAM_SST@unicredit.eu\\Inbox'
 var objOutlook = new ActiveXObject("Outlook.Application");
 
-chekcMail()
+if (getAccountID())
+    chekcMail();
 
 function getAccountID(){
     for (var SST_Account_ID=1; SST_Account_ID<=objOutlook.Session.Accounts.Count; SST_Account_ID++) {
         if (objOutlook.Session.Accounts.Item(SST_Account_ID).UserName==SST_Account_UserName)
-            break;
-        log ('ERROR: Account with name "' + SST_Account_UserName + '" not found! Default account will be used. Please check setting ' + SST_regBase + SST_Account_UserName_Reg)
-        SST_Account_ID = 1
+            return true;
     }
+    log ('ERROR: Account with name "' + SST_Account_UserName + '" not found! Default account will be used. Please check setting ' + SST_regBase + SST_Account_UserName_Reg)
+    return false;
 }
 
 function chekcMail(){
@@ -31,10 +34,9 @@ function chekcMail(){
         var oItem = objNewMailItems.Item(i)
         if (oItem.Class == olMail) {
             log ('Processing ' + oItem.Subject)
-            if (oItem.FlagStatus == olNoFlag) {
+            if (oItem.FlagStatus != olNoFlag) {
                 var m=processMail (oItem)
-                for (o in m)
-                log(o,m[o]);
+                log(JSON.stringify(m))
             } else {
                 log('E-mail ' + oItem.Subject + ' already Flagged as Complete. Skipping...')
             }
@@ -94,11 +96,11 @@ function processMail(oItem) {
     var mSpoofResult = 1
     var spoofResult = getMailHeader(oItem,'X-MS-Exchange-Organization-AuthAs')
 
-    if(spoofResult.substring(spoofResult.length-8)!='internal') {
+    if(!spoofResult||spoofResult.substring(spoofResult.length-8)!='internal') {
         spoofResult = getMailHeader(oItem, 'X-Proofpoint-SPF-Result');
-        if(spoofResult.substring(spoofResult.length-4) != 'pass') {
+        if(!spoofResult||spoofResult.substring(spoofResult.length-4) != 'pass') {
             spoofResult = getMailHeader(oItem, 'Authentication-Results');
-            if (spoofResult.indexOf('spf=pass')==-1 && spoofResult.indexOf('spf=neutral')==-1) {
+            if (!spoofResult||spoofResult.indexOf('spf=pass')==-1 && spoofResult.indexOf('spf=neutral')==-1) {
                 mSpoofResult = 0
             }
         }
@@ -109,16 +111,15 @@ function processMail(oItem) {
         var fileName = oItem.Attachments.Item(a).fileName;
         log ('Saving attachment: '+ fileName)
         mAttachments.push(fileName)
-        mAttachments.push(fileName)
     }
 
-    //oItem.MarkAsTask(olMarkComplete)
+    //oItem.MarkAsTask(olMarkComplete) CHANGE
     oItem.Save()
     var objMailArch = getFolderPath(SST_MailArch_Path)
     if(!objMailArch) {
         log ('processMail', 'Mail Archive folder ' + SST_MailArch_Path + ' not found!')
     } else
-      //  oItem.Move (objMailArch);
+      //  oItem.Move (objMailArch); CHANGE
       ;
     return {Sender:mSender,Recipients:mRecipients, Subject:mSubject, Body:mBody, SpoofResult:mSpoofResult, Attachments:mAttachments}
 }
