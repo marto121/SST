@@ -8,40 +8,97 @@ var olExchangeUserAddressEntry = 0
 var PR_TRANSPORT_MESSAGE_HEADERS = 'http://schemas.microsoft.com/mapi/proptag/0x007D001E'
 
 var SST_Account_UserName = 'UCTAM_SST';
+var SST_Account_UserName = 'outlook_085E258A99872FC4@outlook.com';
 var SST_MailArch_Path = 'UCTAM_SST@unicredit.eu\\Processed'
+var SST_MailArch_Path = 'personal\\Test\\processed'
 var SST_regBase ='';
 var SST_Account_UserName_Reg = ''
 var SST_MailBox_Path = 'UCTAM_SST@unicredit.eu\\Inbox'
+var SST_MailBox_Path = 'personal\\Test'
 var objOutlook = new ActiveXObject("Outlook.Application");
+var fso = new ActiveXObject("Scripting.FileSystemObject")
+var shell = new ActiveXObject("WScript.Shell")
+var SST_Account_ID=1
 
-if (getAccountID())
-    chekcMail();
+if (WScript.Arguments.Count()) {
+    try {
+        getAccountID()
+        var command = WScript.Arguments(0)
+        switch (command) {
+            case "checkMail":
+                var output=chekcMail();
+                WScript.StdOut.Write(JSON.stringify(output))
+                break
+            case "sendMail":
+                var input = JSON.parse(WScript.StdIn.ReadAll())
+                var result=sendMails(input)
+//                var input = JSON.parse("{\"aas\":\"bbb\"}")
+                var output = result
+                WScript.StdOut.Write(JSON.stringify(output))
+                break
+            default:
+                break
+        }
+        WScript.Quit(0)
+    } catch (e) {
+        WScript.StdErr.Write(JSON.stringify({Error:e}))
+        WScript.Quit(99)
+    }
+} else {
+    WScript.StdErr.Write(JSON.stringify({Error:"Please specify command argument!"}))
+}
 
+function sendMails(mails) {
+    var sentMails = []
+    for (m=0;m<mails.length;m++) {
+        try {
+            var oItem = objOutlook.CreateItem(0)
+            oItem.SendUsingAccount = oItem.Session.Accounts.Item(SST_Account_ID)
+            oItem.To = mails[m].Recipients
+            if (mails[m].CC)
+            oItem.CC = mails[m].CC
+            oItem.Subject = mails[m].Subject
+            oItem.HTMLBody = mails[m].Body
+            var atts = mails[m].Attachments
+            for (a=0;a<atts.length;a++) {
+                if(atts[a]!="")
+                oItem.Attachments.Add (atts[a])
+            }
+            oItem.Display()
+            sentMails.push({ID:mails[m].ID,Status:"OK"})
+        } catch (e) {
+            sentMails.push({ID:mails[m].ID,Status:e.message})
+        }
+    }
+    return sentMails
+}
 function getAccountID(){
-    for (var SST_Account_ID=1; SST_Account_ID<=objOutlook.Session.Accounts.Count; SST_Account_ID++) {
-        if (objOutlook.Session.Accounts.Item(SST_Account_ID).UserName==SST_Account_UserName)
+    for (SST_Account_ID=1; SST_Account_ID<=objOutlook.Session.Accounts.Count; SST_Account_ID++) {
+        if (objOutlook.Session.Accounts.Item(SST_Account_ID).SmtpAddress==SST_Account_UserName)
             return true;
     }
-    log ('ERROR: Account with name "' + SST_Account_UserName + '" not found! Default account will be used. Please check setting ' + SST_regBase + SST_Account_UserName_Reg)
-    return false;
+    throw ('ERROR: Account with name "' + SST_Account_UserName + '" not found! Default account will be used. Please check setting ' + SST_regBase + SST_Account_UserName_Reg)
 }
 
 function chekcMail(){
     var objNewMailItems = getFolderPath(SST_MailBox_Path).Items
 
-    if (!objNewMailItems) return 0;
+    if (!objNewMailItems) 
+        throw "Mail folder path " + SST_MailBox_Path + " not found!";
+    var result = []
     for (var i = objNewMailItems.Count; i>0 ; i--) {
         var oItem = objNewMailItems.Item(i)
         if (oItem.Class == olMail) {
             log ('Processing ' + oItem.Subject)
-            if (oItem.FlagStatus != olNoFlag) {
+            if (oItem.FlagStatus == olNoFlag) {
                 var m=processMail (oItem)
-                log(JSON.stringify(m))
+                result.push(m)
             } else {
                 log('E-mail ' + oItem.Subject + ' already Flagged as Complete. Skipping...')
             }
         }
     }
+    return result;
 }
 
 function getFolderPath(folderPath) {
@@ -73,7 +130,7 @@ function log() {
     var d = new Date();
     var msg = ''
     for (i = 0; i < arguments.length; i++) msg+=' '+arguments[i]
-    WScript.Echo( msg)
+//    WScript.Echo( msg)
 }
 
 function processMail(oItem) {
@@ -109,15 +166,17 @@ function processMail(oItem) {
     var mAttachments=[]
     for (var a=1; a<=oItem.Attachments.Count; a++) {
         var fileName = oItem.Attachments.Item(a).fileName;
+        var tempFileName = shell.ExpandEnvironmentStrings("%TEMP%") + "\\" + fso.GetTempName()
         log ('Saving attachment: '+ fileName)
-        mAttachments.push(fileName)
+        oItem.Attachments.Item(a).SaveAsFile(tempFileName)
+        mAttachments.push({fileName:fileName,tempFile:tempFileName})
     }
 
     //oItem.MarkAsTask(olMarkComplete) CHANGE
     oItem.Save()
     var objMailArch = getFolderPath(SST_MailArch_Path)
     if(!objMailArch) {
-        log ('processMail', 'Mail Archive folder ' + SST_MailArch_Path + ' not found!')
+        throw ('Mail Archive folder ' + SST_MailArch_Path + ' not found!')
     } else
       //  oItem.Move (objMailArch); CHANGE
       ;
@@ -127,8 +186,8 @@ function processMail(oItem) {
 function getMailAddress(oAddress) {
     var mAddress
     if (oAddress) {
-        if (oAddress.AddressEntryUserType == olExchangeUserAddressEntry) {
-            mAddress = oAddress.GetExchangeUser.PrimarySmtpAddress.toLowerCase()
+        if (oAddress.AddressEntry.AddressEntryUserType == olExchangeUserAddressEntry) {
+            mAddress = oAddress.AddressEntry.GetExchangeUser.PrimarySmtpAddress.toLowerCase()
         } else {
             mAddress = oAddress.Address.toLowerCase()
         }

@@ -1,3 +1,4 @@
+'use strict'
 module.exports = {
     createReport: createReport,
     createChangeReport_Template:createChangeReport_Template,
@@ -17,7 +18,7 @@ function getLastMonth() {
     return lm.getFullYear()*100+lm.getMonth()+1
 }
 function setNameValue(wb, name, value) {
-    rng = wb.definedNames.getRanges(name)
+    const rng = wb.definedNames.getRanges(name)
     if (rng.ranges[0]) {
         var a = rng.ranges[0].split("!")
         var c = wb.getWorksheet(a[0]).getCell(a[1])
@@ -88,8 +89,8 @@ async function createReport(report_id, m_ID, condition, Rep_LE) {
 }
 
 async function createHTMLLog(m_ID) {
-    var tBody
-    const res = await db.query("select log_date,log_text,nom_log_types.color from SST_Log inner join nom_log_types on nom_log_types.id=sst_log.log_type where Mail_ID=$1 order by sst_log.id",[m_ID]);
+    var tBody = ""
+    const res = await db.query("select to_char(log_date,'DD.MM.YYYY HH24:MI:SS') as log_date,log_text,nom_log_types.color from SST_Log inner join nom_log_types on nom_log_types.id=sst_log.log_type where Mail_ID=$1 order by sst_log.id",[m_ID]);
     for (const row of res.rows ) {
         tBody += "<tr bgcolor='" + row.color + "'><td>" + row.log_date + "</td><td>" + row.log_text + "</td></tr>"
     }
@@ -110,7 +111,8 @@ async function createChangeReport_Template(m_ID) {
         const rsF = await db.query("select repLE, repDate from file_log where m_id=$1",[m_ID])
         if (rsF.rows.length>0) {
             setNameValue(wb, "Rep_LE", rsF.rows[0].reple)
-            setNameValue(wb, "Rep_Date", rsF.rows[0].repdate.getFullYear()*100+rsF.rows[0].repdate.getMonth()+1 )
+            if (rsF.rows[0].repdate)
+                setNameValue(wb, "Rep_Date", rsF.rows[0].repdate.getFullYear()*100+rsF.rows[0].repdate.getMonth()+1 )
         }
         setNameValue(wb, "preparedBy",  "SST Change report for message " + m_ID)
         setNameValue(wb, "preparedOn", new Date())
@@ -180,14 +182,12 @@ function printCells_Template(rsData, sh, m_ID, fields_list) {
                 if (changedField) {
                     changedRow = true
                 }
-                with (shRow.getCell(col)) {
-                    value = newValue;
-                    if (changedField) {
-                        fill = {type:"pattern", pattern:"solid", fgColor:{argb:"00FFCC66"}}
-                    }
-                    if (oldValue!=null) {
-                        //add comment to cell
-                    }
+                shRow.getCell(col).value = newValue;
+                if (changedField) {
+                    shRow.getCell(col).fill = {type:"pattern", pattern:"solid", fgColor:{argb:"00FFCC66"}}
+                }
+                if (oldValue!=null) {
+                    //add comment to cell
                 }
                 if (field.name.toLowerCase()=='record_status') {
                     if (row[field.name]=="New") {

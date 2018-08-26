@@ -1,21 +1,23 @@
+'use strict'
+
 module.exports = {
     parseExcel: parseExcel
 }
     
-    var db = require('./db')
-    var config = require('./config')
-    var constants = require('./constants')
+    const XLSX = require('xlsx');
+    const db = require('./db')
+    const constants = require('./constants')
     
     async function getDefs() {
         var defs = {}
-        var res = await db.query('SELECT * FROM import_mapping', [])//, (err, res) => {
+        var res = await db.query('SELECT * FROM import_mapping-- where sheet_name=\'Object_Data_new\'', [])//, (err, res) => {
             res.rows.forEach(function(row){
                 if (!defs[row.sheet_name])defs[row.sheet_name]={};
                 if (row.target_table) {
                     if (!defs[row.sheet_name][row.target_table]) {
-                        defs[row.sheet_name][row.target_table]={sheet_name:row.sheet_name,key:[],columns:[],conditions:[{cond_col:"all",cond_val:"all"}]};
+                        defs[row.sheet_name][row.target_table]={col_no:1,sheet_name:row.sheet_name,key:[],columns:[],conditions:[{cond_col:"all",cond_val:"all"}]};
                     }
-                    cond_val = "all"
+                    var cond_val = "all"
                     if (row.condition!=null) {
                         var cond_col = row.condition.split("=")[0]
                         cond_val = row.condition.split("=")[1];
@@ -27,15 +29,23 @@ module.exports = {
                     }
                     defs[row.sheet_name][row.target_table].columns.push({column:row.column_no, cond_val:cond_val, key:row.key, name:row.column_name});
                     if (!defs[row.sheet_name][row.target_table][row.target_field]) {
-                        defs[row.sheet_name][row.target_table][row.target_field]={lookup_field:[],target_table:null, lookup_table:null, cond_val:"all"};
+                        if(!row.lookup_field)defs[row.sheet_name][row.target_table].col_no++;
+                        defs[row.sheet_name][row.target_table][row.target_field]={col_no:defs[row.sheet_name][row.target_table].col_no,lookup_field:[],target_table:null, lookup_table:null, cond_val:[]};
                     }
-                    with (defs[row.sheet_name][row.target_table][row.target_field]) {
-                        if(row.lookup_field)lookup_field.push(row.lookup_field)
-                        target_table=row.target_table;
-                        lookup_table=row.lookup_table;
-                        cond_val_=cond_val;
-                        updatemode=row.updatemode;
+                    if(row.lookup_field) {
+                        var thislf = defs[row.sheet_name][row.target_table][row.target_field].lookup_field
+                        var included = false
+                        thislf.forEach(function(l){if(l.lookup_field==row.lookup_field)included=true})
+                        if (!included) {
+                            defs[row.sheet_name][row.target_table].col_no++
+                            defs[row.sheet_name][row.target_table][row.target_field].lookup_field.push({col_no:defs[row.sheet_name][row.target_table].col_no, lookup_field:row.lookup_field})
+                        }
                     }
+                    defs[row.sheet_name][row.target_table][row.target_field].target_table=row.target_table;
+                    defs[row.sheet_name][row.target_table][row.target_field].lookup_table=row.lookup_table;
+                    if(!defs[row.sheet_name][row.target_table][row.target_field].cond_val.includes(cond_val))
+                        defs[row.sheet_name][row.target_table][row.target_field].cond_val.push(cond_val);
+                    defs[row.sheet_name][row.target_table][row.target_field].updatemode=row.updatemode;
                     if (row.key)defs[row.sheet_name][row.target_table].key.push(row.key)
                 }
             })
@@ -45,10 +55,9 @@ module.exports = {
                         if (defs[sh].hasOwnProperty(tt)) {
                             defs[sh][tt].conditions.forEach(function(cond){
                                 var columns = "m_ID"
-                                var values = "$1"
+                                var all_values = "$1"
                                 var update = "m_ID=excluded.m_ID"
                                 var key = "m_ID"
-                                var i = 2
                                 defs[sh][tt].key.forEach (function(k){
                                     if (key.indexOf(", "+k)==-1) {
                                         key += ", " + k 
@@ -60,62 +69,66 @@ module.exports = {
             
                                 var insert = ""
                                 var ins = 0
+                                var i = 2
                                 for (var c in defs[sh][tt]) {
-                                    if (defs[sh][tt].hasOwnProperty(c) && c!="key" && c!="columns" && c!="conditions" && c!="sheet_name") {
-                                        with (defs[sh][tt][c]){
-                                            if (cond_val_=="all"|cond_val_==cond.cond_val){
-                                                columns += ", " + c;
-                                                if (updatemode=="KeepOld") {
-                                                    update += ", " + c + " = coalesce("+c+", excluded." + c + ")";
+                                    if (defs[sh][tt].hasOwnProperty(c) && c!="key" && c!="columns" && c!="conditions" && c!="sheet_name" && c!="col_no") {
+                                        const this_col = defs[sh][tt][c]
+                                        if (this_col.cond_val.includes("all")|this_col.cond_val.includes(cond.cond_val)){
+                                            columns += ", " + c;
+                                            if (this_col.updatemode=="KeepOld") {
+                                                update += ", " + c + " = coalesce("+c+", excluded." + c + ")";
+                                            } else {
+                                                update += ", " + c + " = excluded." + c;
+                                            }
+                                            if (this_col.lookup_field.length>0) {
+                                                insert += ((ins==0)?"with":",") + " ins" + ins + " as (insert into " + this_col.lookup_table
+                                                var ins_columns = ""
+                                                var ins_values = ""
+                                                var ins_cond = ""
+                                                var values = ", coalesce((select id from ins" + ins + "),(select min(id) from " + this_col.lookup_table + " where ";
+                                                ins++;
+                                                if (this_col.lookup_table.toLowerCase()=="npe_list"|this_col.lookup_table.toLowerCase()=="assets_list") {
+                                                    ins_columns += ", m_ID"
+                                                    ins_values = ", $1"
+                                                    ins_cond += "m_ID=$1"
+                                                    values += "m_ID=$1"
                                                 } else {
-                                                    update += ", " + c + " = excluded." + c;
+                                                    values += "1=1"
+                                                    ins_cond += "1=1"
                                                 }
-                                                if (lookup_field.length>0) {
-                                                    insert += ((ins==0)?"with":",") + " ins" + ins + " as (insert into " + lookup_table
-                                                    ins++;
-                                                    var ins_columns = ""
-                                                    var ins_values = ""
-                                                    var ins_cond = ""
-                                                    values += ", (select id from " + lookup_table + " where ";
-                                                    if (lookup_table.toLowerCase()=="npe_list"|lookup_table.toLowerCase()=="assets_list") {
-                                                        ins_columns += ", m_ID"
-                                                        ins_values = ", $1"
-                                                        ins_cond += "m_ID=$1"
-                                                        values += "m_ID=$1"
-                                                    } else {
-                                                        values += "1=1"
-                                                        ins_cond += "1=1"
+                                                this_col.lookup_field.forEach(function(lf){
+                                                    if (values.indexOf(" and coalesce(" + lf.lookup_field + ",'-')=coalesce($")==-1) {
+                                                        ins_columns += ", " + lf.lookup_field
+                                                        i = lf.col_no
+                                                        ins_values += ", cast($" + i + " as varchar)" 
+                                                        ins_cond += " and coalesce(" + lf.lookup_field + ",'-')=coalesce($" + i + ",'-')"
+                                                        values +=   " and coalesce(" + lf.lookup_field + ",'-')=coalesce($" + i + ",'-')";
                                                     }
-                                                    lookup_field.forEach(function(lf){
-                                                        if (values.indexOf(" and coalesce(" + lf + ",'-')=coalesce($")==-1) {
-                                                            ins_columns += ", " + lf
-                                                            ins_values += ", cast($" +i + " as varchar)" 
-                                                            ins_cond += " and coalesce(" + lf + ",'-')=coalesce($" + i + ",'-')"
-                                                            values +=   " and coalesce(" + lf + ",'-')=coalesce($" + i + ",'-')";
-                                                            i++;
-                                                        }
-                                                    });
-                                                    values += ")"
-                                                    insert += "("+ins_columns.substring(2)+") select " + ins_values.substring(2)
-                                                    insert += " where not exists (select 1 from " + lookup_table + " where " + ins_cond + "))"
-                                                } else {
-                                                    values += ", $" + i;
-                                                    i++
-                                                }
+                                                });
+                                                values += "))"
+                                                insert += "("+ins_columns.substring(2)+") select " + ins_values.substring(2)
+                                                insert += " where not exists (select 1 from " + this_col.lookup_table + " where " + ins_cond + ")"
+                                                insert += " returning *)"
+                                                all_values += values;
+                                            } else {
+                                                i = this_col.col_no
+                                                all_values += ", $" + i;
                                             }
                                         }
                                     }
                                 }
                                 if (cond.cond_col!="all") {
+                                    i++
                                     columns += ", " + cond.cond_col;
-                                    values += ", $" +i
+                                    all_values += ", $" + i
                                     update += ", " + cond.cond_col + " = excluded." + cond.cond_col
                                 }
                                 cond.sql = insert
                                     + "INSERT INTO " + tt + "(" + columns + ") "
-                                    + "VALUES (" + values + ") "
+                                    + "VALUES (" + all_values + ") "
                                     + "ON CONFLICT (" + key + ") "
-                                    + "DO UPDATE SET " +  update 
+                                    + "DO UPDATE SET " +  update
+                                console.log(cond.sql)
                             })
                         }
                     }
@@ -126,9 +139,7 @@ module.exports = {
     }
     
     async function parseExcel(fName, m_ID) {
-        var result = {Rep_LE: null, Rep_Date: null};
-        if(typeof require !== 'undefined') XLSX = require('xlsx');
-
+        var result = {Rep_LE: null, Rep_Date: null, toStatus: constants.statusRejected};
         try {
             var workbook = XLSX.readFile(fName,{cellDates:true});
         } catch (e) {
@@ -144,6 +155,21 @@ module.exports = {
         priorMonthEnd.setDate(0);
         priorMonthEnd = priorMonthEnd.getFullYear()*100 + priorMonthEnd.getMonth();
 
+        workbook.Workbook.Names.forEach(function(n){
+            const sheetName = n.Ref.split("!")[0]
+            const cellName = n.Ref.split("!")[1].split(":")[0].replace(/\$/g,"")
+            var cellObject = ""
+            try {
+                cellObject = workbook.Sheets[sheetName][cellName]
+                if (n.Name=="Rep_LE"&&cellObject) {
+                    Rep_LE = cellObject.v.split(":")[0];
+                }
+                if (n.Name=="Rep_Date"&&cellObject) {
+                    Rep_Date = cellObject.v;
+                }
+            } catch (e) {
+            }
+        })
         if (Rep_Date == 0) {
             db.log ("Import", "No or invalid reporting date specified in the file (Name=Rep_Date). Assuming end of previous month.", constants.tWar, m_ID);
             Rep_Date = priorMonthEnd;
@@ -156,21 +182,6 @@ module.exports = {
         if (Rep_Date < 201712) {
             db.log ("Import", "Reporting date specified in the file (Name=Rep_Date) is before 201712. Loading aborted.", constants.tErr, m_ID)
         }
-        var d = new Date();
-        d.setFullYear(Rep_Date/100)
-        d.setMonth(Rep_Date%100+1)
-        d.setDate(0)
-        Rep_Date = d
-        result.Rep_Date = Rep_Date
-
-        workbook.Workbook.Names.forEach(function(n){
-            if (n.Name=="Rep_LE") {
-                Rep_LE = workbook.Sheets[n.Ref.split("!")[0]][n.Ref.split("!")[1].split(":")[0].replace("$","")].v;
-            }
-            if (n.Name=="Rep_Date") {
-                Rep_Date = workbook.Sheets[n.Ref.split("!")[0]][n.Ref.split("!")[1].split(":")[0].replace("$","")].v;
-            }
-        })
 
         if (Rep_LE=="All") {
             const res = await db.query("select Tagetik_Code from vw_LE_Sender where id = $1",[m_ID])
@@ -188,21 +199,21 @@ module.exports = {
 
         result.Rep_LE = Rep_LE
 
-        res = await db.query("select * from vw_LE_Sender where Tagetik_Code=$1 and id=$2",[Rep_LE, m_ID])
+        const res = await db.query("select * from vw_LE_Sender where Tagetik_Code=$1 and id=$2",[Rep_LE, m_ID])
         if (res.rows==0) {
             db.log ("Import", "You are not allowed to work with Legal Entity " + Rep_LE + ". Processing stopped.", constants.tErr, m_ID)
             return result;
         }        
 
         const defs = await getDefs();
-
+//return result// disable actual parsing
         for (const element of workbook.SheetNames) {
             if (defs[element]) {
                 var def=defs[element]
                 db.log ("Import", "Start loading sheet: " + element, constants.tLog, m_ID)
                 var sh=workbook.Sheets[element];
                 var range = XLSX.utils.decode_range(sh['!ref'])
-                for (r=1; r<=range.e.r; r++) {
+                for (var r=1; r<=range.e.r; r++) {
 
                     var ce = sh[XLSX.utils.encode_cell({c:0, r:r})]
                     if (!ce||ce.v==null) {
@@ -221,7 +232,7 @@ module.exports = {
                                 try {
                                     await db.query(cond.sql, params);
                                 } catch (err) {
-                                    db.log ("Import", "Sheet \"" + def[tt].sheet_name +"\", row " + r + ". Error text: " + err.toString(), constants.tErr, m_ID, constants.tLog, m_ID)
+                                    db.log ("Import", "Sheet \"" + def[tt].sheet_name +"\", row " + (r+1) + ". Error text: " + err.toString() + ". SQL: " + cond.sql + params, constants.tErr, m_ID, constants.tLog, m_ID)
                                 }
                             }
                         }
@@ -239,6 +250,7 @@ module.exports = {
                 db.log ("Import", "Sheet with name: " + element + " not recognized. Skipping...", constants.tWar, m_ID)
             }
         };
+        result.toStatus = constants.statusProcessed;
         return result;
     }
     
@@ -259,7 +271,7 @@ module.exports = {
                         ce = {v:null}
                     }
                     if (col.key!=null&&ce.v==null) {
-                        db.log("Import", "Sheet \"" + def.sheet_name +"\", row " + r + ", column \"" + col.name + "\" can not be empty!", constants.tErr, m_ID)
+                        db.log("Import", "Sheet \"" + def.sheet_name +"\", row " + (r+1) + ", column \"" + col.name + "\" can not be empty!", constants.tErr, m_ID)
                     }
                     if (col.name.toLowerCase()=="sale_id"&&ce.v==null) ce.v=ce.Rep_Date.getFullYear()*100+ce.Rep_Date.getMonth();
                     params.push(ce.v)

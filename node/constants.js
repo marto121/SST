@@ -1,3 +1,4 @@
+'use strict'
 const tLog = 0
 const tWar = 1
 const tErr = 2
@@ -8,6 +9,7 @@ const statusReceived = 0
 const statusProcessed = 1
 const statusConfirmed = 2
 const statusRejected = 3
+const statusError = 9
 
 const roleSend = 1
 const roleConfirm = 2
@@ -29,10 +31,13 @@ module.exports = {
     tLog: tLog,
     tWar: tWar,
     tErr: tErr,
+    tInfo: tInfo,
+    tSys: tSys,
     statusReceived: statusReceived,
     statusProcessed: statusProcessed,
     statusConfirmed: statusConfirmed,
     statusRejected: statusRejected,
+    statusError: statusError,
     
     roleSend: roleSend,
     roleConfirm: roleConfirm,
