@@ -75,9 +75,9 @@ async function gen_report(report_id, m_ID) {
             }
         }
     }
-    var fileName = config.SST_Att_Path_Out + '' + report_code + '_' + ("00000" + m_ID).slice(-6) + '_0000' + '.xlsx';
+    var fileName = config.SST_Att_Path_Out + '\\' + report_code + '_' + ("00000" + m_ID).slice(-6) + '_0000' + '.xlsx';
     for (var f=0; f<=9999; f++) {
-        fileName = config.SST_Att_Path_Out + '' + report_code + '_' + ("00000" + m_ID).slice(-6) + '_' + ('000' + f).slice(-4) + '.xlsx';
+        fileName = config.SST_Att_Path_Out + '\\' + report_code + '_' + ("00000" + m_ID).slice(-6) + '_' + ('000' + f).slice(-4) + '.xlsx';
         if (!fs.existsSync(fileName)) {
             break;
         }

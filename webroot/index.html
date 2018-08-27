@@ -1,0 +1,28 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>UCTAM SST</title>
+    <link rel="stylesheet" href="/css/sst.css">
+    <script src="js/jquery.min.js"></script>
+    <script src="js/sst.js"></script>
+    <script>
+
+
+
+        $(document).ready(function () {
+            refreshReports();
+        });
+    </script>
+
+
+</head>
+<body>
+    <table>
+        <tr><th>List of Reports <img src="images/sync.png" onclick="javascript:refreshReports()" alt="Refresh"/></th><th>Report output</th></tr>
+        <tr>
+            <td valign="top"><table id="tbReports" class="tbReports"></table></td>
+            <td><table id="tbResult" class="tbResult"></table></td>
+        </tr>
+    </table>
+
+</body>
+</html>

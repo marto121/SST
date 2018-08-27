@@ -1,4 +1,5 @@
 eval((new ActiveXObject('Scripting.FileSystemObject')).OpenTextFile('json2/json2.js', 1).ReadAll());
+eval((new ActiveXObject('Scripting.FileSystemObject')).OpenTextFile('config.js', 1).ReadAll());
 
 // Constants
 var olNoFlag = 0
@@ -7,6 +8,7 @@ var olMail = 43
 var olExchangeUserAddressEntry = 0
 var PR_TRANSPORT_MESSAGE_HEADERS = 'http://schemas.microsoft.com/mapi/proptag/0x007D001E'
 
+/*
 var SST_Account_UserName = 'UCTAM_SST';
 var SST_Account_UserName = 'outlook_085E258A99872FC4@outlook.com';
 var SST_MailArch_Path = 'UCTAM_SST@unicredit.eu\\Processed'
@@ -15,6 +17,7 @@ var SST_regBase ='';
 var SST_Account_UserName_Reg = ''
 var SST_MailBox_Path = 'UCTAM_SST@unicredit.eu\\Inbox'
 var SST_MailBox_Path = 'personal\\Test'
+*/
 var objOutlook = new ActiveXObject("Outlook.Application");
 var fso = new ActiveXObject("Scripting.FileSystemObject")
 var shell = new ActiveXObject("WScript.Shell")
@@ -53,7 +56,7 @@ function sendMails(mails) {
     for (m=0;m<mails.length;m++) {
         try {
             var oItem = objOutlook.CreateItem(0)
-            oItem.SendUsingAccount = oItem.Session.Accounts.Item(SST_Account_ID)
+            oItem.SendUsingAccount = oItem.Session.Accounts.Item(config.SST_Account_ID)
             oItem.To = mails[m].Recipients
             if (mails[m].CC)
             oItem.CC = mails[m].CC
@@ -74,17 +77,17 @@ function sendMails(mails) {
 }
 function getAccountID(){
     for (SST_Account_ID=1; SST_Account_ID<=objOutlook.Session.Accounts.Count; SST_Account_ID++) {
-        if (objOutlook.Session.Accounts.Item(SST_Account_ID).SmtpAddress==SST_Account_UserName)
+        if (objOutlook.Session.Accounts.Item(SST_Account_ID).SmtpAddress==config.SST_Account_UserName)
             return true;
     }
-    throw ('ERROR: Account with name "' + SST_Account_UserName + '" not found! Default account will be used. Please check setting ' + SST_regBase + SST_Account_UserName_Reg)
+    throw ('ERROR: Account with name \"' + config.SST_Account_UserName + '\" not found! Default account will be used. Please check setting \"SST_Account_UserName\".')
 }
 
 function chekcMail(){
-    var objNewMailItems = getFolderPath(SST_MailBox_Path).Items
+    var objNewMailItems = getFolderPath(config.SST_MailBox_Path).Items
 
     if (!objNewMailItems) 
-        throw "Mail folder path " + SST_MailBox_Path + " not found!";
+        throw "Mail folder path " + config.SST_MailBox_Path + " not found!";
     var result = []
     for (var i = objNewMailItems.Count; i>0 ; i--) {
         var oItem = objNewMailItems.Item(i)
@@ -174,9 +177,9 @@ function processMail(oItem) {
 
     //oItem.MarkAsTask(olMarkComplete) CHANGE
     oItem.Save()
-    var objMailArch = getFolderPath(SST_MailArch_Path)
+    var objMailArch = getFolderPath(config.SST_MailArch_Path)
     if(!objMailArch) {
-        throw ('Mail Archive folder ' + SST_MailArch_Path + ' not found!')
+        throw ('Mail Archive folder ' + config.SST_MailArch_Path + ' not found!')
     } else
       //  oItem.Move (objMailArch); CHANGE
       ;
