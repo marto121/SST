@@ -133,13 +133,13 @@ var sstApp = function() {
         var result = await proxy.exec('cs_mail.js','sendMail', messages)
 
         if (result.Error) {
-            await db.log("checkMail", "Error checking mail: " + result.Error, constants.tSys, -1)
+            await db.log("sendMail", "Error checking mail: " + result.Error, constants.tSys, -1)
         } else {
             for (const res of result) {
                 if(res.Status=="OK") {
                     await db.query("update mail_queue set mStatus=$1 where id=$2",[constants.statusProcessed, res.ID])
                 } else {
-                    await db.log("checkMail", "Error sending mail: " + res.Status, constants.tSys, res.ID)
+                    await db.log("sendMail", "Error sending mail: " + res.Status, constants.tSys, res.ID)
                 }
             }
         }

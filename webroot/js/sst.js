@@ -39,7 +39,7 @@ function refreshReports()
             }, 500)
         },
         error: function (request, status, error) {
-            $("#tbReports").append("<tr><td>"+request.responseText+"</td></tr>");
+            $("#tbReports").append("<tr><td class=\"error\"><b>An error occured:</b><br>"+request.responseText+"</td></tr>");
         }
     });
 }

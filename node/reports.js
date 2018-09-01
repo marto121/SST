@@ -187,6 +187,7 @@ function printCells_Template(rsData, sh, m_ID, fields_list) {
                     shRow.getCell(col).fill = {type:"pattern", pattern:"solid", fgColor:{argb:"00FFCC66"}}
                 }
                 if (oldValue!=null) {
+                    shRow.getCell(col).comment = "Old value: " + oldValue
                     //add comment to cell
                 }
                 if (field.name.toLowerCase()=='record_status') {
