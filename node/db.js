@@ -1,10 +1,17 @@
 'use strict'
-const { Pool } = require('pg')
+const pg = require('pg')
+
+
+pg.types.setTypeParser( 1082, 'text', function( val ) {
+    console.log(val)
+    return new Date( val + ' 00:00:00Z')
+
+})
 var config = require('./config');
 
 var pool;
 try {
-    pool = new Pool({connectionString:config.SST_pg_conn})
+    pool = new pg.Pool({connectionString:config.SST_pg_conn})
 } catch (e) {
     console.log("ERROR: Connection failed: " + e.description)
 }
