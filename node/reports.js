@@ -47,6 +47,8 @@ async function createReport(report_id, m_ID, condition, Rep_LE) {
                     await wb.xlsx.readFile(templateFileName)
                     setNameValue(wb, "Rep_LE", Rep_LE)
                     setNameValue(wb, "Rep_Date", getLastMonth() )
+                    setNameValue(wb, "preparedBy",  "SST Report " + m_ID)
+                    setNameValue(wb, "preparedOn", new Date())
                 } else {
                     templateFileName = ""
                     db.log("createReport", "Template file name " + templateFileName + " not found! Creating empty file.", constants.tWar, m_ID)
@@ -144,11 +146,18 @@ function printCells_Template(rsData, sh, m_ID, fields_list) {
     if (sh.getCell("A1").text) {
         emptySheet = false
     }
-    if (emptySheet) {
-        rsData.fields.forEach ( function (field) {
-            if (field.name.substring(0,4).toLowerCase()!='old_') {
-                outRow.push(field.name)
-            }
+    var fieldMap = {}
+    const fieldNames = fields_list.split(",")
+    const fieldNamesLower = fields_list.toLowerCase().split(",")
+    rsData.fields.forEach ( function (field) {
+//        console.log("field " + field.name + " goes to "+fieldNamesLower.indexOf(field.name.replace("new_","")))
+        if (fieldNamesLower.indexOf(field.name.toLowerCase().replace("new_",""))!=-1) {
+            fieldMap[field.name.toLowerCase()]=1+fieldNamesLower.indexOf(field.name.toLowerCase().replace("new_",""))
+        }
+    })
+if (emptySheet) {
+        fieldNames.forEach ( function (field) {
+            outRow.push(field.trim())
         })
         sh.getRow(1).values = outRow
         sh.getRow(1).font={bold:true}
@@ -164,27 +173,27 @@ function printCells_Template(rsData, sh, m_ID, fields_list) {
         //console.log(shRow)
         rsData.fields.forEach(function (field) {
             var changedField = false
-            if (field.name.substring(0,4).toLowerCase()!='old_') {
+            if (fieldMap.hasOwnProperty(field.name)&&field.name.substring(0,4).toLowerCase()!='old_') {
                 col ++
                 var oldValue = null
                 var newValue = row[field.name]
-                if (field.name.toLowerCase().indexOf("_new")!=-1) {
-                    oldValue = row[field.name.replace("_new","_old")]
+                if (field.name.toLowerCase().substring(0,4)=="new_") {
+                    oldValue = row[field.name.replace("new_","old_")]
+                    if ((oldValue==null&&newValue!=null)|oldValue!=newValue){
+                        changedField = true
+                    }
                 }
                 if (newValue==null) newValue = oldValue;
-                if ((oldValue==null&&newValue!=null)|oldValue!=newValue){
-                    changedField = true
+                if(oldValue&&parseFloat(oldValue)!=NaN&&newValue&&parseFloat(newValue)!=NaN) {
+                    if (Math.round(parseFloat(oldValue))==Math.round(parseFloat(newValue)))changedField = false
                 }
-                if(oldValue&&oldValue.parseFloat()!=NaN&&newValue&&newValue.parseFloat()!=NaN) {
-                    if (round(oldValue.parseFloat())==round(newValue.parseFloat()))changedField = false
-                }
-                if((oldValue==null)&&newValue&&newValue.parseFloat&&newValue.parseFloat()==0)changedField=false
+                if((oldValue==null)&&newValue&&parseFloat(newValue)!=NaN&&parseFloat(newValue)==0)changedField=false
                 if (changedField) {
                     changedRow = true
                 }
-                shRow.getCell(col).value = newValue;
+                shRow.getCell(fieldMap[field.name]).value = newValue;
                 if (changedField) {
-                    shRow.getCell(col).fill = {type:"pattern", pattern:"solid", fgColor:{argb:"00FFCC66"}}
+                    shRow.getCell(fieldMap[field.name]).fill = {type:"pattern", pattern:"solid", fgColor:{argb:"00FFCC66"}}
                 }
                 if (oldValue!=null) {
                     //add comment to cell

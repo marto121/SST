@@ -10,7 +10,7 @@ module.exports = {
     
     async function getDefs() {
         var defs = {}
-        var res = await db.query('SELECT * FROM import_mapping-- where sheet_name=\'Object_Data_new\'', [])//, (err, res) => {
+        var res = await db.query('SELECT * FROM import_mapping-- where sheet_name=\'Asset_Status\'', [])//, (err, res) => {
             res.rows.forEach(function(row){
                 if (!defs[row.sheet_name])defs[row.sheet_name]={};
                 if (row.target_table) {
@@ -100,9 +100,15 @@ module.exports = {
                                                     if (values.indexOf(" and coalesce(" + lf.lookup_field + ",'-')=coalesce($")==-1) {
                                                         ins_columns += ", " + lf.lookup_field
                                                         i = lf.col_no
-                                                        ins_values += ", cast($" + i + " as varchar)" 
-                                                        ins_cond += " and coalesce(" + lf.lookup_field + ",'-')=coalesce($" + i + ",'-')"
-                                                        values +=   " and coalesce(" + lf.lookup_field + ",'-')=coalesce($" + i + ",'-')";
+                                                        if (lf.lookup_field=="NPE_Code") { // @TODO FIND BETTER SOLUTION
+                                                            ins_values += ", left(cast($" + i + " as varchar),8)" 
+                                                            ins_cond += " and coalesce(" + lf.lookup_field + ",'-')=left(coalesce($" + i + ",'-'),8)"
+                                                            values +=   " and coalesce(" + lf.lookup_field + ",'-')=left(coalesce($" + i + ",'-'),8)";
+                                                        } else {
+                                                            ins_values += ", cast($" + i + " as varchar)" 
+                                                            ins_cond += " and coalesce(" + lf.lookup_field + ",'-')=coalesce($" + i + ",'-')"
+                                                            values +=   " and coalesce(" + lf.lookup_field + ",'-')=coalesce($" + i + ",'-')";
+                                                        }
                                                     }
                                                 });
                                                 values += "))"
@@ -128,7 +134,7 @@ module.exports = {
                                     + "VALUES (" + all_values + ") "
                                     + "ON CONFLICT (" + key + ") "
                                     + "DO UPDATE SET " +  update
-                                console.log(cond.sql)
+                                //console.log(cond.sql)
                             })
                         }
                     }
@@ -153,7 +159,7 @@ module.exports = {
         // Check for valid reporting period
         var priorMonthEnd = new Date();
         priorMonthEnd.setDate(0);
-        priorMonthEnd = priorMonthEnd.getFullYear()*100 + priorMonthEnd.getMonth();
+        priorMonthEnd = priorMonthEnd.getFullYear()*100 + priorMonthEnd.getMonth()+1;
 
         workbook.Workbook.Names.forEach(function(n){
             const sheetName = n.Ref.split("!")[0]
@@ -198,6 +204,7 @@ module.exports = {
         }
 
         result.Rep_LE = Rep_LE
+        result.Rep_Date = intToDate(Rep_Date)
 
         const res = await db.query("select * from vw_LE_Sender where Tagetik_Code=$1 and id=$2",[Rep_LE, m_ID])
         if (res.rows==0) {
@@ -228,7 +235,7 @@ module.exports = {
                     for (var tt in def) {
                         if (def.hasOwnProperty(tt)) {
                             for (const cond of def[tt].conditions) {
-                                var params = compile_params(sh, r, def[tt], cond.cond_val, {Rep_LE:Rep_LE, Rep_Date:Rep_Date}, m_ID)
+                                var params = compile_params(sh, r, def[tt], cond.cond_val, {Rep_LE:Rep_LE, Rep_Date:intToDate(Rep_Date)}, m_ID)
                                 try {
                                     await db.query(cond.sql, params);
                                 } catch (err) {
@@ -284,3 +291,10 @@ module.exports = {
         return params
     }
 
+function intToDate(intDate) {
+    var d = new Date()
+    d.setFullYear(Math.trunc(intDate/100))
+    d.setMonth(intDate%100)
+    d.setDate(0)
+    return d
+}

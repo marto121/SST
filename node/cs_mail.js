@@ -56,7 +56,7 @@ function sendMails(mails) {
     for (m=0;m<mails.length;m++) {
         try {
             var oItem = objOutlook.CreateItem(0)
-            oItem.SendUsingAccount = oItem.Session.Accounts.Item(config.SST_Account_ID)
+            oItem.SendUsingAccount = oItem.Session.Accounts.Item(SST_Account_ID)
             oItem.To = mails[m].Recipients
             if (mails[m].CC)
             oItem.CC = mails[m].CC
@@ -85,7 +85,7 @@ function getAccountID(){
 
 function chekcMail(){
     var objNewMailItems = getFolderPath(config.SST_MailBox_Path).Items
-
+    log (objNewMailItems.Count)
     if (!objNewMailItems) 
         throw "Mail folder path " + config.SST_MailBox_Path + " not found!";
     var result = []
@@ -111,6 +111,7 @@ function getFolderPath(folderPath) {
     aFolders = folderPath.split('\\')
     try {
         var oFolder = objOutlook.Session.Folders.Item(aFolders[0]);
+        log(oFolder)
     } catch (e) {
         log ('Error obtaining Outlook session / Folder ' + aFolders[0])
         return null;
@@ -120,12 +121,15 @@ function getFolderPath(folderPath) {
             var subFolders = oFolder.Folders;
             try {
                 oFolder = subFolders.Item(aFolders[f]);
+                log(oFolder)
             } catch (e) {
                 log ('Error obtaining Outlook session / Folder ' + aFolders[f])
                 return null;
             }
         }
     }
+
+    log(oFolder.Items.Count)
     return oFolder
 }
 

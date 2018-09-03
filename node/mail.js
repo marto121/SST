@@ -80,7 +80,7 @@ async function prepareAnswer(m_ID) {
         } else {
             db.log ("prepareAnswer", "No command found in E-mail subject", constants.tLog, m_ID)
         }
-        res = await db.query("select max(repLE) as repLE, to_char(max(repDate),'DD.MM.YYYY') as repDate, to_char(max(Confirm_Date),'DD.MM.YYYY') as Confirm_Date, count(*) As cnt from File_Log left join calendar on file_log.repDate = calendar.rep_date where m_ID = $1 and fileStatus = $2",[m_ID, constants.statusProcessed])
+        res = await db.query("select max(repLE) as repLE, to_char(max(repDate),'DD.MM.YYYY') as repDate, to_char(max(send_date),'DD.MM.YYYY') as send_date, to_char(max(Confirm_Date),'DD.MM.YYYY') as Confirm_Date, count(*) As cnt from File_Log left join calendar on file_log.repDate = calendar.rep_date where m_ID = $1 and fileStatus = $2",[m_ID, constants.statusProcessed])
         if (res.rowCount>0&&res.rows[0].cnt>0) {
             attachment = await reports.createChangeReport_Template(m_ID)
             
@@ -110,7 +110,7 @@ async function prepareAnswer(m_ID) {
                     if (role.role & constants.roleConfirm == 2) {
                         if (config.SST_Log_Recipients.toLowerCase().indexOf(role.email.toLowerCase())==-1) {
                             addRecipients += ";" + role.email
-                            mailText += "Dear {name}, <BR>"
+                            mailText += "Dear " + role.email + ", <BR>"
                         }
                     }
                 })
@@ -124,7 +124,7 @@ async function prepareAnswer(m_ID) {
                 mailText += "Submissions with errors cannot be accepted!</b>"
                 mailText += errorsText
                 if (res.rows[0].confirm_date)
-                    mailText += "<p>The deadline for sending the data for " + res.rows[0].repDate + " is <u>" + res.rows[0].confirm_date + "</u>."
+                    mailText += "<p>The deadline for sending the data for " + res.rows[0].repdate + " is <u>" + res.rows[0].send_date + "</u>."
             } else {
                 mailText += "Please have a look and if you find the data satisfactory, answer to this E-Mail with OK in the message body."
                 mailText += "If you have any concerns for the quality of delivered data, please contact the sender and request corerctions. "
@@ -213,7 +213,7 @@ async function createReminders(m_ID) {
 
 async function queueMail(mqRecipients, mqCC, mqSubject, mqBody, mqAttachments) {
 //    console.log (mqRecipients, mqCC, mqSubject, mqAttachments)
-    fs.writeFileSync("c:\\Users\\Marti\\Desktop\\sst_out.html", mqBody)
+//    fs.writeFileSync("c:\\Users\\Marti\\Desktop\\sst_out.html", mqBody)
     const res = await db.query(
         "insert into mail_queue (mrecipients, mcc, msubject, mbody, mattachments, mstatus, mdate) values ($1, $2, $3, $4, $5, $6, $7)"
         , [mqRecipients, mqCC, mqSubject, mqBody, mqAttachments, 0, new Date()]
