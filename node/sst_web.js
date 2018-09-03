@@ -128,7 +128,11 @@ app.get('/menu/lstReports', (req, res) => {
       })
       res.status(200).send(JSON.stringify(lstReports))
     }
-  )
+  ).catch(err=>{
+    console.log(err)
+    res.status(400).send(err.toString())
+})
+
 })
 
 function toHTML(innerHTML) {

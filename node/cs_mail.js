@@ -29,7 +29,7 @@ if (WScript.Arguments.Count()) {
         var command = WScript.Arguments(0)
         switch (command) {
             case "checkMail":
-                var output=chekcMail();
+                var output=checkMail();
                 WScript.StdOut.Write(JSON.stringify(output))
                 break
             case "sendMail":
@@ -83,7 +83,7 @@ function getAccountID(){
     throw ('ERROR: Account with name \"' + config.SST_Account_UserName + '\" not found! Default account will be used. Please check setting \"SST_Account_UserName\".')
 }
 
-function chekcMail(){
+function checkMail(){
     var objNewMailItems = getFolderPath(config.SST_MailBox_Path).Items
 
     if (!objNewMailItems) 
