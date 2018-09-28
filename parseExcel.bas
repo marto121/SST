@@ -263,7 +263,7 @@ Function Import(fileName, m_ID, out_Rep_LE, out_Rep_Date)' As String, m_ID' As L
                             If dstTable.mandatoryCols.Exists(col) Then
                                 Log "Import", "Missing data in mandatory column: " & column_name & ". Sheet: " & sh.Name & ", Row: " & r , tWar, m_ID
                             Else
-                                rs.Fields(column_name).value = Null
+                                if column_name <> "Sale_ID" Then rs.Fields(column_name).value = Null
                             End If
                         End If
                         
@@ -319,7 +319,7 @@ Function getSheetDef(sheetName, m_ID)' As String, m_ID' As Long)' As Boolean
     Set sheetTables = CreateObject ( "Scripting.Dictionary" )
     Set codeLists = CreateObject ( "Scripting.Dictionary" )
     
-    Set rsCols = dbConn.Execute("select * from Import_Mapping where Target_Table is not null and Sheet_Name='" & sheetName & "'")
+    Set rsCols = dbConn.Execute("select * from Import_Mapping where Target_Table is not null and Sheet_Name='" & sheetName & "' order by column_no, target_table")
     If rsCols.EOF Then
         If sheetName = "Title" or sheetName = "Codes" Then
         Else
