@@ -55,7 +55,7 @@ async function createReport(report_id, m_ID, condition, Rep_LE) {
                 }
             }
             for (var r in sheets.rows) {
-                shRow = sheets.rows[r]
+                var shRow = sheets.rows[r]
                 var sh = wb.getWorksheet(shRow.sheet_name)
                 if (!sh) {
                     sh = wb.addWorksheet(shRow.sheet_name);
@@ -78,7 +78,7 @@ async function createReport(report_id, m_ID, condition, Rep_LE) {
             }
 
             var fileName = ""
-            for (f = 0; f<9999; f++) {
+            for (var f = 0; f<9999; f++) {
                 fileName = config.SST_Att_Path_Out + "\\" + report_code + '_' + ("00000" + m_ID).slice(-6) + '_' + ('000' + f).slice(-4) + '.xlsx'
                 if (!fs.existsSync(fileName)) {
                     break;
@@ -148,7 +148,11 @@ function printCells_Template(rsData, sh, m_ID, fields_list) {
     }
     var fieldMap = {}
     const fieldNames = fields_list.split(",")
-    const fieldNamesLower = fields_list.toLowerCase().split(",")
+    var fieldNamesLower = [];
+    fieldNames.forEach(field=>{
+        fieldNamesLower.push(field.trim().toLowerCase())
+    })
+//    console.log(fieldNamesLower)
     rsData.fields.forEach ( function (field) {
 //        console.log("field " + field.name + " goes to "+fieldNamesLower.indexOf(field.name.replace("new_","")))
         if (fieldNamesLower.indexOf(field.name.toLowerCase().replace("new_",""))!=-1) {
@@ -175,29 +179,33 @@ if (emptySheet) {
             var changedField = false
             if (fieldMap.hasOwnProperty(field.name)&&field.name.substring(0,4).toLowerCase()!='old_') {
                 col ++
-                var oldValue = null
+                var oldValue = null;
                 var newValue = row[field.name]
                 if (field.name.toLowerCase().substring(0,4)=="new_") {
                     oldValue = row[field.name.replace("new_","old_")]
-                    if ((oldValue==null&&newValue!=null)|oldValue!=newValue){
+                    if ((oldValue==null&&newValue!=null)|(oldValue!=newValue)){
+                        if (!(newValue instanceof Date && oldValue instanceof Date && newValue.getTime()==oldValue.getTime())) {
                         changedField = true
                     }
                 }
-                if (newValue==null) newValue = oldValue;
+                }
+                if (newValue==null) newValue = '';
                 if(oldValue&&parseFloat(oldValue)!=NaN&&newValue&&parseFloat(newValue)!=NaN) {
                     if (Math.round(parseFloat(oldValue))==Math.round(parseFloat(newValue)))changedField = false
                 }
-                if((oldValue==null)&&newValue&&parseFloat(newValue)!=NaN&&parseFloat(newValue)==0)changedField=false
+                if((oldValue==null)&&newValue&&parseFloat(newValue)==0)changedField=false;
                 if (changedField) {
-                    changedRow = true
+                    changedRow = true;
                 }
                 shRow.getCell(fieldMap[field.name]).value = newValue;
                 if (changedField) {
                     shRow.getCell(fieldMap[field.name]).fill = {type:"pattern", pattern:"solid", fgColor:{argb:"00FFCC66"}}
-                }
                 if (oldValue!=null) {
+                        if (oldValue instanceof Date)
+                            oldValue = oldValue.getDate()+"."+(oldValue.getMonth()+1)+"."+oldValue.getFullYear();
                     shRow.getCell(col).comment = "Old value: " + oldValue
                     //add comment to cell
+                }
                 }
                 if (field.name.toLowerCase()=='record_status') {
                     if (row[field.name]=="New") {

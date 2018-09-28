@@ -57,7 +57,7 @@ async function prepareAnswer(m_ID) {
             db.log ("prepareAnswer", "Detected \"" + rName + "\" command. A template will be generated.", constants.tLog, m_ID)
             var sel=""
             if(mSubject.indexOf(":")!=-1) {
-                sel = mSubject.split(":")[0].trim()
+                sel = mSubject.split(":")[1].trim()
             }
             if (sel!="") {
                 Rep_Country = sel
@@ -66,7 +66,7 @@ async function prepareAnswer(m_ID) {
             }
             if (Rep_Country!="") {
                 const res3 = await db.query("select Rep_LE from vw_CountryLE where MIS_Code = $1",[Rep_Country])
-                if (res3.rows>0) {
+                if (res3.rowCount>0) {
                     Rep_LE = res3.rows[0].rep_le
                 } else {
                     db.log ("prepareAnswer", "Error getting default Legal Entity for " + Rep_Country + ".", constants.tErr, m_ID)
@@ -110,7 +110,7 @@ async function prepareAnswer(m_ID) {
                     if (role.role & constants.roleConfirm == 2) {
                         if (config.SST_Log_Recipients.toLowerCase().indexOf(role.email.toLowerCase())==-1) {
                             addRecipients += ";" + role.email
-                            mailText += "Dear " + role.email + ", <BR>"
+                            mailText += "Dear " + role.firstname + ", <BR>"
                         }
                     }
                 })

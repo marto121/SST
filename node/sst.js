@@ -13,7 +13,7 @@ var sstApp = function() {
     async function checkMail() {
         var mails = proxy.execSync('cs_mail.js','checkMail')
         if (mails.hasOwnProperty("Error")) {
-            await db.log("checkMail", "Error checking mail: " + mails.Error, constants.tSys, -1)
+            await db.log("checkMail", "Error checking mail: " + JSON.stringify(mails.Error), constants.tSys, -1)
         } else {
             for (const mail of mails) {
                 //mail: Sender, Recipients, Subject, Body, SpoofResult (0 = Pass), Attachments
@@ -27,6 +27,7 @@ var sstApp = function() {
                     var m_ID = -1
                     if (res.rowCount)
                         m_ID = res.rows[0].id
+                    await db.log("checkMail", "New mail received from: " + mail.Sender + " with subject: " + mail.Subject + ". Starting processing.", constants.tLog, m_ID)
                     for (const att of mail.Attachments) {
                         var fStatus = constants.statusReceived
                         const targetFileName =  utils.pad(m_ID, 4) + "_" + att.fileName;
@@ -142,7 +143,7 @@ var sstApp = function() {
                 await db.query("update file_log set fileStatus=$1, repLE=$2, repDate=$3 where id = $4", [parseResult.toStatus, parseResult.Rep_LE, parseResult.Rep_Date, row.id])
                 result ++;
             } catch (e) {
-                db.log("processFiles", "Error updating file_log!"+err.toString(), constants.tSys, row.m_id);
+                db.log("processFiles", "Error updating file_log!"+e.toString(), constants.tSys, row.m_id);
             }
         }
         return result;

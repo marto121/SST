@@ -1,10 +1,10 @@
 'use strict'
 const pg = require('pg')
-
+/*
 pg.types.setTypeParser( 1082, 'text', function( val ) {
     return new Date( val + ' 00:00:00Z')
 })
-
+*/
 var config = require('./config');
 
 var pool;

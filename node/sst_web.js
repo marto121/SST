@@ -2,10 +2,10 @@
 
 var config = require('./config')
 const db = require('./db')
-const ADODB = require('node-adodb');
-const connection = ADODB.open('Provider=Microsoft.ACE.OLEDB.12.0;Data source=' + config.SST_DB_Path + ';');
+const fs = require('fs');
 
 const express = require('express')
+const https = require('https')
 const app = express()
 
 app.use(express.static(config.SST_Root_Path))
@@ -141,7 +141,17 @@ function toHTML(innerHTML) {
   out += "</body></html>"
   return out
 }
-app.listen(3000, () => console.log('Example app listening on port 3000!'))
+
+var privateKey = fs.readFileSync( config.web_privatekey );
+var certificate = fs.readFileSync( config.web_cert );
+
+https.createServer({
+    key: privateKey,
+    cert: certificate,
+    passphrase: config.web_privatepass
+}, app).listen(config.web_port, () => console.log('SST Web app listening on port '+config.web_port+'!'));
+
+//app.listen(3000, () => console.log('Example app listening on port 3000!'))
 
 function formatValue(dataTypeID, value) {
   switch(dataTypeID) {
