@@ -29,15 +29,16 @@ exports.execSync = function (script, command, params) {
   try {
     const stdio = spawnSync(cscript, [scriptPath, '//E:JScript', '//Nologo', '//U', '//B', command], { windowsHide: true, input: JSON.stringify(params) })
     if (stdio.status) {
-      return new Error("Error executing script " + script + ". Message: " + JSON.parse(stdio.stderr.toString('utf16le')).Error)
+      return JSON.parse(stdio.stderr.toString('utf16le'))
     } else {
       return JSON.parse(stdio.stdout.toString('utf16le'))
     }
   } catch (e) {
-    return new Error("Error executing spawnSync: " + e.toString());
+    return {Error:"Error executing spawnSync: " + e.toString()};
   }
 }
 exports.exec = function(script, command, params) {
+//  console.log(script, command, params)
   const scriptPath = path.join(__dirname, script);
   return new Promise((resolve, reject) => {
     // Exec commond
@@ -52,7 +53,8 @@ exports.exec = function(script, command, params) {
         // Parse json data
         data = JSON.parse(data);
       } catch (error) {
-        return reject(data);
+        resolve({Error:"Error parsing JSON: " + error.toString()})
+        //return reject(data);
       }
 
       // Is valid json
@@ -61,12 +63,14 @@ exports.exec = function(script, command, params) {
 
     // Stderr
     stdio.stderr.on('data', data => {
-      reject(new Error(data.toString('utf16le')));
+      data = data.toString('utf16le');
+      resolve(JSON.parse(data))
+      //reject(new Error(data.toString('utf16le')));
     });
 
     // Exec error
     stdio.on('error', error => {
-      reject(error);
+      resolve({Error:"Error executing checkMail: " + error.toString()})
     });
 
     // Send params

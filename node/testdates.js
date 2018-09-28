@@ -8,7 +8,8 @@ var templateFileName="C:\\Users\\Marti\\Documents\\UCTAM\\TestDatenImportRomania
 var Excel = require('exceljs');
 var db = require('./db');
 db.query("select * from calendar ").then(res=>{
-    console.log(res.rows)
+    console.log(res.rows[0])
+    console.log(res.rows[0].rep_date==res.rows[0].rep_date)
 })
 
 /*var wb = new Excel.Workbook();

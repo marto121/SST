@@ -6,6 +6,7 @@ var olNoFlag = 0
 var olMarkComplete = 5
 var olMail = 43
 var olExchangeUserAddressEntry = 0
+var olExchangeRemoteUserAddressEntry = 5
 var PR_TRANSPORT_MESSAGE_HEADERS = 'http://schemas.microsoft.com/mapi/proptag/0x007D001E'
 
 /*
@@ -56,8 +57,8 @@ function sendMails(mails) {
     for (m=0;m<mails.length;m++) {
         try {
             var oItem = objOutlook.CreateItem(0)
-            oItem.SendUsingAccount = oItem.Session.Accounts.Item(config.SST_Account_ID)
-            oItem.To = mails[m].Recipients
+            oItem.SendUsingAccount = oItem.Session.Accounts.Item(SST_Account_ID)
+            oItem.To = 'mkrastev.external@unicredit.eu'//mails[m].Recipients
             if (mails[m].CC)
             oItem.CC = mails[m].CC
             oItem.Subject = mails[m].Subject
@@ -68,6 +69,7 @@ function sendMails(mails) {
                 oItem.Attachments.Add (atts[a])
             }
             oItem.Display()
+            oItem.Send()
             sentMails.push({ID:mails[m].ID,Status:"OK"})
         } catch (e) {
             sentMails.push({ID:mails[m].ID,Status:e.message})
@@ -85,7 +87,7 @@ function getAccountID(){
 
 function checkMail(){
     var objNewMailItems = getFolderPath(config.SST_MailBox_Path).Items
-
+    log (objNewMailItems.Count)
     if (!objNewMailItems) 
         throw "Mail folder path " + config.SST_MailBox_Path + " not found!";
     var result = []
@@ -93,7 +95,7 @@ function checkMail(){
         var oItem = objNewMailItems.Item(i)
         if (oItem.Class == olMail) {
             log ('Processing ' + oItem.Subject)
-            if (oItem.FlagStatus == olNoFlag) {
+            if (1|(oItem.FlagStatus == olNoFlag)) {
                 var m=processMail (oItem)
                 result.push(m)
             } else {
@@ -111,6 +113,7 @@ function getFolderPath(folderPath) {
     aFolders = folderPath.split('\\')
     try {
         var oFolder = objOutlook.Session.Folders.Item(aFolders[0]);
+        log(oFolder)
     } catch (e) {
         log ('Error obtaining Outlook session / Folder ' + aFolders[0])
         return null;
@@ -120,12 +123,15 @@ function getFolderPath(folderPath) {
             var subFolders = oFolder.Folders;
             try {
                 oFolder = subFolders.Item(aFolders[f]);
+                log(oFolder)
             } catch (e) {
                 log ('Error obtaining Outlook session / Folder ' + aFolders[f])
                 return null;
             }
         }
     }
+
+    log(oFolder.Items.Count)
     return oFolder
 }
 
@@ -181,7 +187,7 @@ function processMail(oItem) {
     if(!objMailArch) {
         throw ('Mail Archive folder ' + config.SST_MailArch_Path + ' not found!')
     } else
-      //  oItem.Move (objMailArch); CHANGE
+        oItem.Move (objMailArch); //CHANGE
       ;
     return {Sender:mSender,Recipients:mRecipients, Subject:mSubject, Body:mBody, SpoofResult:mSpoofResult, Attachments:mAttachments}
 }
@@ -189,7 +195,9 @@ function processMail(oItem) {
 function getMailAddress(oAddress) {
     var mAddress
     if (oAddress) {
-        if (oAddress.AddressEntry.AddressEntryUserType == olExchangeUserAddressEntry) {
+        log(oAddress.AddressEntry)
+        if (oAddress.AddressEntry.AddressEntryUserType == olExchangeUserAddressEntry ||
+            oAddress.AddressEntry.AddressEntryUserType == olExchangeRemoteUserAddressEntry) {
             mAddress = oAddress.AddressEntry.GetExchangeUser.PrimarySmtpAddress.toLowerCase()
         } else {
             mAddress = oAddress.Address.toLowerCase()

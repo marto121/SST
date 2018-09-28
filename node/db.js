@@ -1,12 +1,10 @@
 'use strict'
 const pg = require('pg')
-
-
+/*
 pg.types.setTypeParser( 1082, 'text', function( val ) {
-    console.log(val)
     return new Date( val + ' 00:00:00Z')
-
 })
+*/
 var config = require('./config');
 
 var pool;
@@ -37,7 +35,7 @@ async function confirmMessage(confirm_m_ID, log_m_ID) {
 }
 
 async function performChecks(m_ID) {
-    return //@TODO FIX
+//    return //@TODO FIX
     await query("SELECT * FROM fn_performchecks($1)", [m_ID])
 }
 
@@ -46,7 +44,7 @@ async function performFX(m_ID) {
 }
 
 async function performUpdates(m_ID) {
-    return //@TODO FIX
+//    return //@TODO FIX
     await query("SELECT * FROM fn_performupdates($1,$2)", [m_ID,m_ID]) //check for confir_message_id
 }
 

@@ -35,7 +35,7 @@ function refreshReports()
                     var row = '<tr><td class=\"report\"><button onclick=\"javascript:showReport(\''+obj.repLink+'\')\">' + obj.repName + '</button></td></tr>'
                     $("#tbReports").append(row);
                 });
-                $("#tbReports").append("<tr><td><button onclick=\"javascript:myFunc()\">runScript</button></td></tr>");
+                //$("#tbReports").append("<tr><td><button onclick=\"javascript:myFunc()\">runScript</button></td></tr>");
             }, 500)
         },
         error: function (request, status, error) {

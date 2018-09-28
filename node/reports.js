@@ -47,13 +47,15 @@ async function createReport(report_id, m_ID, condition, Rep_LE) {
                     await wb.xlsx.readFile(templateFileName)
                     setNameValue(wb, "Rep_LE", Rep_LE)
                     setNameValue(wb, "Rep_Date", getLastMonth() )
+                    setNameValue(wb, "preparedBy",  "SST Report " + m_ID)
+                    setNameValue(wb, "preparedOn", new Date())
                 } else {
                     templateFileName = ""
                     db.log("createReport", "Template file name " + templateFileName + " not found! Creating empty file.", constants.tWar, m_ID)
                 }
             }
             for (var r in sheets.rows) {
-                shRow = sheets.rows[r]
+                var shRow = sheets.rows[r]
                 var sh = wb.getWorksheet(shRow.sheet_name)
                 if (!sh) {
                     sh = wb.addWorksheet(shRow.sheet_name);
@@ -76,7 +78,7 @@ async function createReport(report_id, m_ID, condition, Rep_LE) {
             }
 
             var fileName = ""
-            for (f = 0; f<9999; f++) {
+            for (var f = 0; f<9999; f++) {
                 fileName = config.SST_Att_Path_Out + "\\" + report_code + '_' + ("00000" + m_ID).slice(-6) + '_' + ('000' + f).slice(-4) + '.xlsx'
                 if (!fs.existsSync(fileName)) {
                     break;
@@ -144,11 +146,22 @@ function printCells_Template(rsData, sh, m_ID, fields_list) {
     if (sh.getCell("A1").text) {
         emptySheet = false
     }
-    if (emptySheet) {
-        rsData.fields.forEach ( function (field) {
-            if (field.name.substring(0,4).toLowerCase()!='old_') {
-                outRow.push(field.name)
-            }
+    var fieldMap = {}
+    const fieldNames = fields_list.split(",")
+    var fieldNamesLower = [];
+    fieldNames.forEach(field=>{
+        fieldNamesLower.push(field.trim().toLowerCase())
+    })
+//    console.log(fieldNamesLower)
+    rsData.fields.forEach ( function (field) {
+//        console.log("field " + field.name + " goes to "+fieldNamesLower.indexOf(field.name.replace("new_","")))
+        if (fieldNamesLower.indexOf(field.name.toLowerCase().replace("new_",""))!=-1) {
+            fieldMap[field.name.toLowerCase()]=1+fieldNamesLower.indexOf(field.name.toLowerCase().replace("new_",""))
+        }
+    })
+if (emptySheet) {
+        fieldNames.forEach ( function (field) {
+            outRow.push(field.trim())
         })
         sh.getRow(1).values = outRow
         sh.getRow(1).font={bold:true}
@@ -164,31 +177,35 @@ function printCells_Template(rsData, sh, m_ID, fields_list) {
         //console.log(shRow)
         rsData.fields.forEach(function (field) {
             var changedField = false
-            if (field.name.substring(0,4).toLowerCase()!='old_') {
+            if (fieldMap.hasOwnProperty(field.name)&&field.name.substring(0,4).toLowerCase()!='old_') {
                 col ++
-                var oldValue = null
+                var oldValue = null;
                 var newValue = row[field.name]
-                if (field.name.toLowerCase().indexOf("_new")!=-1) {
-                    oldValue = row[field.name.replace("_new","_old")]
+                if (field.name.toLowerCase().substring(0,4)=="new_") {
+                    oldValue = row[field.name.replace("new_","old_")]
+                    if ((oldValue==null&&newValue!=null)|(oldValue!=newValue)){
+                        if (!(newValue instanceof Date && oldValue instanceof Date && newValue.getTime()==oldValue.getTime())) {
+                        changedField = true
+                    }
                 }
-                if (newValue==null) newValue = oldValue;
-                if ((oldValue==null&&newValue!=null)|oldValue!=newValue){
-                    changedField = true
                 }
-                if(oldValue&&oldValue.parseFloat()!=NaN&&newValue&&newValue.parseFloat()!=NaN) {
-                    if (round(oldValue.parseFloat())==round(newValue.parseFloat()))changedField = false
+                if (newValue==null) newValue = '';
+                if(oldValue&&parseFloat(oldValue)!=NaN&&newValue&&parseFloat(newValue)!=NaN) {
+                    if (Math.round(parseFloat(oldValue))==Math.round(parseFloat(newValue)))changedField = false
                 }
-                if((oldValue==null)&&newValue&&newValue.parseFloat&&newValue.parseFloat()==0)changedField=false
+                if((oldValue==null)&&newValue&&parseFloat(newValue)==0)changedField=false;
                 if (changedField) {
-                    changedRow = true
+                    changedRow = true;
                 }
-                shRow.getCell(col).value = newValue;
+                shRow.getCell(fieldMap[field.name]).value = newValue;
                 if (changedField) {
-                    shRow.getCell(col).fill = {type:"pattern", pattern:"solid", fgColor:{argb:"00FFCC66"}}
-                }
+                    shRow.getCell(fieldMap[field.name]).fill = {type:"pattern", pattern:"solid", fgColor:{argb:"00FFCC66"}}
                 if (oldValue!=null) {
+                        if (oldValue instanceof Date)
+                            oldValue = oldValue.getDate()+"."+(oldValue.getMonth()+1)+"."+oldValue.getFullYear();
                     shRow.getCell(col).comment = "Old value: " + oldValue
                     //add comment to cell
+                }
                 }
                 if (field.name.toLowerCase()=='record_status') {
                     if (row[field.name]=="New") {
