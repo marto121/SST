@@ -14,6 +14,7 @@ var Excel = require('exceljs');
 
 function getLastMonth() {
     var today = new Date()
+    today.setDate(today.getDate()+10) //To avoid old month in reminders
     var lm = new Date(today.getFullYear(), today.getMonth(), 0)
     return lm.getFullYear()*100+lm.getMonth()+1
 }
@@ -45,6 +46,7 @@ async function createReport(report_id, m_ID, condition, Rep_LE) {
                 templateFileName = config.SST_Templates_Path + "\\" + templateFileName
                 if (fs.existsSync(templateFileName)) {
                     await wb.xlsx.readFile(templateFileName)
+                    invalidateFormulas(wb);
                     setNameValue(wb, "Rep_LE", Rep_LE)
                     setNameValue(wb, "Rep_Date", getLastMonth() )
                     setNameValue(wb, "preparedBy",  "SST Report " + m_ID)
@@ -65,7 +67,9 @@ async function createReport(report_id, m_ID, condition, Rep_LE) {
                     try {
                         const data = await db.query(sql)
                         if (templateFileName == "") {
-                            sh.addRow(Object.keys(data.rows[0]))
+                            var fN = [];
+                            data.fields.forEach(function(fn){fN.push(fn.name)});
+                            sh.addRow(fN);
                         }
                         for (var rr in data.rows) {
                             sh.addRow(Object.values(data.rows[rr]))
@@ -90,6 +94,20 @@ async function createReport(report_id, m_ID, condition, Rep_LE) {
     }
 }
 
+async function invalidateFormulas(wb) {
+    wb.eachSheet(function(sh, shId) {
+        sh.eachRow({},function(row, rowNumnber){
+            row.eachCell(function(cell, colNumber) {
+                var cv = cell.value;
+                if(cv.sharedFormula||cv.formula) {
+                    cv.result = undefined;
+                    cell.value=cv;
+                }
+            })
+        })
+    })
+}
+
 async function createHTMLLog(m_ID) {
     var tBody = ""
     const res = await db.query("select to_char(log_date,'DD.MM.YYYY HH24:MI:SS') as log_date,log_text,nom_log_types.color from SST_Log inner join nom_log_types on nom_log_types.id=sst_log.log_type where Mail_ID=$1 order by sst_log.id",[m_ID]);
@@ -109,8 +127,9 @@ async function createChangeReport_Template(m_ID) {
     var wb = new Excel.Workbook();
     if (fs.existsSync(templateFileName)) {
         await wb.xlsx.readFile(templateFileName)
+        invalidateFormulas(wb);
 
-        const rsF = await db.query("select repLE, repDate from file_log where m_id=$1",[m_ID])
+        const rsF = await db.query("select repLE, repDate from file_log where m_id=$1 and fileType=\'SST\'",[m_ID])
         if (rsF.rows.length>0) {
             setNameValue(wb, "Rep_LE", rsF.rows[0].reple)
             if (rsF.rows[0].repdate)
@@ -203,7 +222,7 @@ if (emptySheet) {
                 if (oldValue!=null) {
                         if (oldValue instanceof Date)
                             oldValue = oldValue.getDate()+"."+(oldValue.getMonth()+1)+"."+oldValue.getFullYear();
-                    shRow.getCell(col).comment = "Old value: " + oldValue
+                    shRow.getCell(fieldMap[field.name]).comment = "Old value: " + oldValue
                     //add comment to cell
                 }
                 }

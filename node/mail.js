@@ -30,7 +30,8 @@ async function prepareAnswer(m_ID) {
       if(res.rows[0].authstatus==1) {
         if (res.rows[0].answerrecipients)
             addRecipients = res.rows[0].answerrecipients;
-//        mailText = res.rows[0].answerText
+        if (res.rows[0].answertext)
+            mailText = res.rows[0].answertext;
 
         var countryList="'NONE'"
         var Rep_Country = "-"
@@ -80,7 +81,7 @@ async function prepareAnswer(m_ID) {
         } else {
             db.log ("prepareAnswer", "No command found in E-mail subject", constants.tLog, m_ID)
         }
-        res = await db.query("select max(repLE) as repLE, to_char(max(repDate),'DD.MM.YYYY') as repDate, to_char(max(send_date),'DD.MM.YYYY') as send_date, to_char(max(Confirm_Date),'DD.MM.YYYY') as Confirm_Date, count(*) As cnt from File_Log left join calendar on file_log.repDate = calendar.rep_date where m_ID = $1 and fileStatus = $2",[m_ID, constants.statusProcessed])
+        res = await db.query("select max(repLE) as repLE, to_char(max(repDate),'DD.MM.YYYY') as repDate, to_char(max(send_date),'DD.MM.YYYY') as send_date, to_char(max(Confirm_Date),'DD.MM.YYYY') as Confirm_Date, count(*) As cnt from File_Log left join calendar on file_log.repDate = calendar.rep_date where m_ID = $1 and fileStatus = $2 and fileType=\'SST\'",[m_ID, constants.statusProcessed])
         if (res.rowCount>0&&res.rows[0].cnt>0) {
             attachment = await reports.createChangeReport_Template(m_ID)
             
@@ -107,14 +108,14 @@ async function prepareAnswer(m_ID) {
             } else {
                 const resRoles = await db.query("select * from vw_Mail_Roles where m_ID = $1", [m_ID])
                 resRoles.rows.forEach(function(role) {
-                    if (role.role & constants.roleConfirm == 2) {
+                    if ((role.role & constants.roleConfirm) == 2) {
                         if (config.SST_Log_Recipients.toLowerCase().indexOf(role.email.toLowerCase())==-1) {
                             addRecipients += ";" + role.email
                             mailText += "Dear " + role.firstname + ", <BR>"
                         }
                     }
                 })
-                mailText += "<p>" + senderName + " has sent data to the SST for " + res.rows[0].rep_le + " as of " + res.rows[0].repdate+ ". "
+                mailText += "<p>" + senderName + " has sent data to the SST for " + res.rows[0].reple + " as of " + res.rows[0].repdate+ ". "
             }
             mailText += "In the attachment you may find the submitted report, highlighting the changes made. "
             mailText += "In the log below you may see all the messages generated during processing of the file. "
@@ -132,7 +133,7 @@ async function prepareAnswer(m_ID) {
             mailText += "<p>The deadline for confirming the data for " + res.rows[0].repdate + " is <u>" + res.rows[0].confirm_date + "</u>."
 
             mailText += "<p>Regards, SST"
-            mqRecipients += addRecipients
+            mqRecipients += ";" + addRecipients
         } else {
             attachment = ""
             db.log ("prepareAnswer", "No valid attachments found in E-mail", constants.tLog, m_ID)
@@ -148,7 +149,7 @@ async function prepareAnswer(m_ID) {
     }
     var htmlLog = await reports.createHTMLLog(m_ID)
     mqBody += "<p>" + mailText + "<p>" + htmlLog
-    await queueMail (mqRecipients, "", mqSubject, mqBody, mqAttachments)
+    await queueMail (mqRecipients, config.SST_Log_Recipients, mqSubject, mqBody, mqAttachments)
 }
 
 async function createReminders(m_ID) {
@@ -165,14 +166,14 @@ async function createReminders(m_ID) {
                         // List of recipients
                         const rsUsers = await db.query("select role, FirstName, EMail from Users where LE_ID=$1",[rLE.id])
                         var mqRecipients = ""
-                        var mqCC = ""
+                        var mqCC = config.SST_Log_Recipients
                         var mqBody = ""
                         for (const rUser of rsUsers.rows) {
                             if(rUser.role&constants.roleConfirm) {
-                                if(config.SST_Log_Recipients.indexOf(rUser.email)==-1) {
-                                    mqCC += rUser.email + ";"
+                                if(config.SST_Log_Recipients.toLowerCase().indexOf(rUser.email.toLowerCase())==-1) {
+                                    mqCC += ";" + rUser.email
                                 }
-                            } else {
+                            } else if (rUser.role&constants.roleSend) {
                                 mqBody += "<p>Dear " + rUser.firstname + ","
                                 mqRecipients += rUser.email + ";"
                             }

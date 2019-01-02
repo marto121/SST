@@ -21,7 +21,7 @@ var sstApp = function() {
                 var authStatus = 0
                 if (res.rowCount)
                     authStatus = 1
-                await db.query("BEGIN")
+//                await db.query("BEGIN")
                 try {
                     res = await db.query("insert into mail_log (sender, receiver, subject, body, mailstatus, authStatus) values ($1, $2, $3, $4, $5, $6) returning id", [mail.Sender, mail.Recipients, mail.Subject, mail.Body, constants.statusReceived, authStatus])
                     var m_ID = -1
@@ -46,7 +46,10 @@ var sstApp = function() {
                             fileType = "SST"
                             NPE_Code = ""
                         } else {
-                            db.log("processMail", "Attachment: " + att.fileName + " is not an Excel file (*.xl*), Business case (BC_*) or Exit Calculation (EC_*). Skipping ...", constants.tWar, m_ID)
+                            const fileExt = att.fileName.split('.').pop().toLowerCase();
+                            // Disregard pics
+                            if (fileExt != 'png' && fileExt != 'gif' && fileExt != 'jpg') 
+                                db.log("processMail", "Attachment: " + att.fileName + " is not an Excel file (*.xl*), Business case (BC_*) or Exit Calculation (EC_*). Skipping ...", constants.tWar, m_ID)
                             fStatus = constants.statusProcessed
                         }
                         try {
@@ -57,9 +60,10 @@ var sstApp = function() {
                             db.log("checkMail", "Error saving file " + config.SST_Att_Path + "\\" + targetFileName + ": " + e.message, constants.tWar, m_ID)
                         }
                     }
-                    await db.query("COMMIT")
                 } catch (e) {
                     db.log("checkMail", "Error inserting new mails: "+e.toString(), constants.tSys, -1);
+                } finally {
+//                    await db.query("COMMIT")
                 }
             }
         }
@@ -80,10 +84,10 @@ var sstApp = function() {
         try {
             const ml = await db.query("select authStatus, sender, subject, body from mail_log where id = $1", [m_ID])
             if (ml.rows[0].authstatus) {
-                if (ml.rows[0].subject.toLowerCase()=="ok") {
-                    var matches = mystring.match(/\{(.*?)\}/);
+                if (ml.rows[0].body.substring(0,2).toLowerCase()=="ok") {
+                    var matches = ml.rows[0].subject.match(/\{(.*?)\}/);
                     var confirm_m_ID;
-                    if (matches&&(confirm_m_ID=parseInt(matches[0]))&&!isNaN(confirm_m_ID)) {
+                    if (matches&&(confirm_m_ID=parseInt(matches[1]))&&!isNaN(confirm_m_ID)) {
                         db.log("processMail", "Identified 'OK' command in message. Confirming data in Message ID " + confirm_m_ID, constants.tLog, m_ID)
                         try {
                             await db.confirmMessage(confirm_m_ID, m_ID)
@@ -164,7 +168,7 @@ var sstApp = function() {
                 if(res.Status=="OK") {
                     await db.query("update mail_queue set mStatus=$1 where id=$2",[constants.statusProcessed, res.ID])
                 } else {
-                    await db.log("sendMails", "Error updating sendMail status: " + res.Status, constants.tSys, res.ID)
+                    await db.log("sendMails", "Error updating sendMail status: " + res.Status, constants.tSys, -1)
                 }
             }
         }

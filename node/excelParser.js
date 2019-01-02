@@ -186,8 +186,13 @@ module.exports = {
             db.log ("Import", "Reporting date specified in the file (Name=Rep_Date) is in the future. Assuming end of previous month.", constants.tWar, m_ID)
             Rep_Date = priorMonthEnd
         }
+        if (Rep_Date < priorMonthEnd) {
+            db.log ("Import", "Reporting date specified in the file (Sheet Title, Name=Rep_Date) is in the past. Loading aborted.", constants.tErr, m_ID)
+            return result
+        }
         if (Rep_Date < 201712) {
             db.log ("Import", "Reporting date specified in the file (Name=Rep_Date) is before 201712. Loading aborted.", constants.tErr, m_ID)
+            return result
         }
 
         if (Rep_LE=="All") {
@@ -202,6 +207,8 @@ module.exports = {
             return result
         } else {
             Rep_LE = Rep_LE.split(":")[0];
+            Rep_LE = Rep_LE.split("_")[0];
+            Rep_LE = Rep_LE.split(" ")[0];
             db.log ("Import", "Importing data for legal entity " + Rep_LE, constants.tLog, m_ID);
         }
 
@@ -266,7 +273,8 @@ module.exports = {
                 }*/
             } else {
                 //console.log (defs)
-                db.log ("Import", "Sheet with name: " + sh.name + " not recognized. Skipping...", constants.tWar, m_ID)
+                if (sh.name.toLowerCase()!='codes' && sh.name.toLowerCase()!='title')
+                    db.log ("Import", "Sheet with name \"" + sh.name + "\" not recognized. Skipping...", constants.tWar, m_ID)
             }
         };
         result.toStatus = constants.statusProcessed;
@@ -288,21 +296,36 @@ module.exports = {
                     params.push(statics.Rep_Date)
                 } else {
                     const ce = row.getCell(col.column);
-                    const cell_value = (ce.type==6)?ce.result:ce.value;
+                    var cell_value = (ce.type==6)?ce.result:ce.value;
+                    if(col.name.toLowerCase().indexOf('date')>-1) {
+                        if (cell_value instanceof Date) {
+                            cell_value = cell_value.toLocaleDateString();
+                        } else {
+                            if (cell_value!=null) {
+                                try {
+                                    cell_value = strToDate(cell_value)
+                                    if (cell_value=="Invalid Date") cell_value=null;
+                                } catch (e) {
+                                    db.log("Import", "Sheet \"" + def.sheet_name +"\", row " + (rowNumber+1) + ", column \"" + col.name + "\" has invalid date: \"" + cell_value + "\"!", constants.tWar, m_ID);
+                                    cell_value = null;
+                                }
+                            }
+                        }
+                    }
                     if (col.key!=null){
-                        key_columns.push(col.name);
-                        key_values.push((cell_value instanceof Date)?cell_value.toLocaleDateString():cell_value);
-                        if(ce.value==null) {
+                        if(cell_value==null) {
                             const defaultValue = getDefaultValue(col.name, statics);
                             if (defaultValue) {
-                                ce.value = defaultValue;
+                                cell_value = defaultValue;
                             } else {
                                 db.log("Import", "Sheet \"" + def.sheet_name +"\", row " + (rowNumber+1) + ", column \"" + col.name + "\" can not be empty!", constants.tErr, m_ID);
                             }
                         }
+                        key_columns.push(col.name);
+                        key_values.push(cell_value);
                     }
 //                    if (col.name.toLowerCase()=="sale_id"&&ce.value==null) ce.value=statics.Rep_Date.getFullYear()*100+statics.Rep_Date.getMonth();
-                    
+                    if ((typeof cell_value=="string" || cell_value instanceof String) && (cell_value.trim()==""||cell_value.trim().toLowerCase()=="n/a")) cell_value = null;
                     params.push(cell_value)
                 }
             }
@@ -328,4 +351,8 @@ function intToDate(intDate) {
     d.setMonth(intDate%100)
     d.setDate(0)
     return d
+}
+function strToDate(strDate) {
+    const parts = strDate.split(/\.|\-|\//);
+    return new Date(Date.UTC(parts[2],parts[1]-1,parts[0]));
 }

@@ -81,7 +81,7 @@ app.get('/reportsJSON/:queryName', function (req, res, next) {
   })
 });
 
-app.get('/', (req, res) => {
+app.get('/--no-way--', (req, res) => {
     var userName = req.connection.user
     db.query("select * from Users where UserName = '" + userName + "'").then(
         rs=>{
@@ -121,10 +121,10 @@ app.get('/', (req, res) => {
 app.get('/menu/lstReports', (req, res) => {
   var userName = req.connection.user
   var lstReports=[]
-  db.query("select * from Reports").then(
+  db.query("select report_name, report_query, report_group, report_order from get_user_reports(\'" + userName + "\') order by report_group, report_order").then(
     reps=> {
       reps.rows.forEach(function (rep) {
-        lstReports.push({repLink:"/reportsJSON/" + rep.report_query.replace("rep_",""),repName:rep.report_name})
+        lstReports.push({repLink:"/reportsJSON/" + rep.report_query.replace("rep_",""),repName:rep.report_name,repGroup:rep.report_group,repOrder:rep.report_order})
       })
       res.status(200).send(JSON.stringify(lstReports))
     }

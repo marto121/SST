@@ -58,7 +58,7 @@ function sendMails(mails) {
         try {
             var oItem = objOutlook.CreateItem(0)
             oItem.SendUsingAccount = oItem.Session.Accounts.Item(SST_Account_ID)
-            oItem.To = 'mkrastev.external@unicredit.eu'//mails[m].Recipients
+            oItem.To = mails[m].Recipients
             if (mails[m].CC)
             oItem.CC = mails[m].CC
             oItem.Subject = mails[m].Subject
@@ -68,7 +68,7 @@ function sendMails(mails) {
                 if(atts[a]!="")
                 oItem.Attachments.Add (atts[a])
             }
-            oItem.Display()
+//            oItem.Display()
             oItem.Send()
             sentMails.push({ID:mails[m].ID,Status:"OK"})
         } catch (e) {
@@ -97,7 +97,7 @@ function checkMail(){
             log ('Processing ' + oItem.Subject)
             if (1|(oItem.FlagStatus == olNoFlag)) {
                 var m=processMail (oItem)
-                result.push(m)
+                if (m) result.push(m);
             } else {
                 log('E-mail ' + oItem.Subject + ' already Flagged as Complete. Skipping...')
             }
@@ -189,6 +189,10 @@ function processMail(oItem) {
     } else
         oItem.Move (objMailArch); //CHANGE
       ;
+    if (
+        (oItem.Subject.toLowerCase().indexOf("out of office reply")>-1)||
+        (oItem.Subject.toLowerCase().indexOf("automatic reply")>-1)
+    ) return null;
     return {Sender:mSender,Recipients:mRecipients, Subject:mSubject, Body:mBody, SpoofResult:mSpoofResult, Attachments:mAttachments}
 }
 
