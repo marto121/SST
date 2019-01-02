@@ -6,6 +6,7 @@ var olNoFlag = 0
 var olMarkComplete = 5
 var olMail = 43
 var olExchangeUserAddressEntry = 0
+var olExchangeRemoteUserAddressEntry = 5
 var PR_TRANSPORT_MESSAGE_HEADERS = 'http://schemas.microsoft.com/mapi/proptag/0x007D001E'
 
 /*
@@ -67,7 +68,8 @@ function sendMails(mails) {
                 if(atts[a]!="")
                 oItem.Attachments.Add (atts[a])
             }
-            oItem.Display()
+//            oItem.Display()
+            oItem.Send()
             sentMails.push({ID:mails[m].ID,Status:"OK"})
         } catch (e) {
             sentMails.push({ID:mails[m].ID,Status:e.message})
@@ -93,9 +95,9 @@ function checkMail(){
         var oItem = objNewMailItems.Item(i)
         if (oItem.Class == olMail) {
             log ('Processing ' + oItem.Subject)
-            if (oItem.FlagStatus == olNoFlag) {
+            if (1|(oItem.FlagStatus == olNoFlag)) {
                 var m=processMail (oItem)
-                result.push(m)
+                if (m) result.push(m);
             } else {
                 log('E-mail ' + oItem.Subject + ' already Flagged as Complete. Skipping...')
             }
@@ -185,15 +187,21 @@ function processMail(oItem) {
     if(!objMailArch) {
         throw ('Mail Archive folder ' + config.SST_MailArch_Path + ' not found!')
     } else
-      //  oItem.Move (objMailArch); CHANGE
+        oItem.Move (objMailArch); //CHANGE
       ;
+    if (
+        (oItem.Subject.toLowerCase().indexOf("out of office reply")>-1)||
+        (oItem.Subject.toLowerCase().indexOf("automatic reply")>-1)
+    ) return null;
     return {Sender:mSender,Recipients:mRecipients, Subject:mSubject, Body:mBody, SpoofResult:mSpoofResult, Attachments:mAttachments}
 }
 
 function getMailAddress(oAddress) {
     var mAddress
     if (oAddress) {
-        if (oAddress.AddressEntry.AddressEntryUserType == olExchangeUserAddressEntry) {
+        log(oAddress.AddressEntry)
+        if (oAddress.AddressEntry.AddressEntryUserType == olExchangeUserAddressEntry ||
+            oAddress.AddressEntry.AddressEntryUserType == olExchangeRemoteUserAddressEntry) {
             mAddress = oAddress.AddressEntry.GetExchangeUser.PrimarySmtpAddress.toLowerCase()
         } else {
             mAddress = oAddress.Address.toLowerCase()

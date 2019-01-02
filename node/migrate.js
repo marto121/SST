@@ -120,8 +120,7 @@ async function migrate(tables, srcConn, dstConn) {
 }
 
 var tables =[
-/*    "Mail_Log",
-    "Nom_Currencies",
+/*    "Nom_Currencies",
     "Nom_Countries",
     "Legal_Entities",
     "Nom_Asset_Owned",
@@ -132,7 +131,8 @@ var tables =[
     "Nom_Log_Types",
     "Nom_NPE_Status",
     "Nom_Scenarios",
-    "Nom_Transaction_Types",
+    "Nom_Transaction_Types",*/
+    "Mail_Log",
     "NPE_List",
     "Assets_List",
     "NPE_History",
@@ -148,22 +148,22 @@ var tables =[
     "Counterparts",
     "File_Log",
     "FX_Rates",
-    "Import_Mapping",*/
+//    "Import_Mapping",
     "LastDate",
-    "lst_Reports",
-    "lst_Sheets",
-    "lst_Checks",
-    "lst_Updates",
-    "Meta_Updatable_Tables",
+//    "lst_Reports",
+//    "lst_Sheets",
+//    "lst_Checks",
+//    "lst_Updates",
+//    "Meta_Updatable_Tables",
     "orig_shifted",
     "SST_Log",
-    "Users",
+//    "Users",
     "calendar",
     "Mail_Queue",
     "Meta_CCY_Conversion",
     "Equity_History",
     "Procurement_Actions",
-    "Reports",
+//    "Reports",
     "Update_Log"
 ]
 

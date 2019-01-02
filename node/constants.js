@@ -11,8 +11,9 @@ const statusConfirmed = 2
 const statusRejected = 3
 const statusError = 9
 
-const roleSend = 1
-const roleConfirm = 2
+const roleView = 0
+const roleSend = 1 //The user can send data to the SST
+const roleConfirm = 2 //The user can confirm data
 
 function getStatusName(inStatus) {
     if (inStatus == statusReceived) 
@@ -39,6 +40,7 @@ module.exports = {
     statusRejected: statusRejected,
     statusError: statusError,
     
+    roleView: roleView,
     roleSend: roleSend,
     roleConfirm: roleConfirm,
 
