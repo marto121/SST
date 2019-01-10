@@ -59,10 +59,15 @@ app.use(function (req, res, next) {
     })
 });
 app.get('/reportsJSON/:queryName', function (req, res, next) {
-  console.log(req.params)
+  console.log(req.query)
   console.log(req.headers["accept-language"] )
   var lang = req.headers["accept-language"]
-  db.query("select * from rep_" + req.params.queryName + " where le_id in (select le_id from users where username=\'"+ req.connection.user  +"\')").then(rs=> {
+  var filter = ""
+  Object.keys(req.query).forEach(function(key,index) {
+    filter += " and cast(\"" + key + "\" as varchar) like '" + req.query[key] + "'"
+  })
+  console.log(filter)
+  db.query("select * from rep_" + req.params.queryName + " where (le_id=-1 or le_id in (select le_id from users where username=\'"+ req.connection.user  +"\'))" + filter).then(rs=> {
     var aFields = []
       var aRows = []
       rs.fields.forEach(function(Field) {if(Field.name!="le_id")aFields.push({fieldName:Field.name, dataTypeID:Field.dataTypeID})})
@@ -121,10 +126,10 @@ app.get('/--no-way--', (req, res) => {
 app.get('/menu/lstReports', (req, res) => {
   var userName = req.connection.user
   var lstReports=[]
-  db.query("select report_name, report_query, report_group, report_order from get_user_reports(\'" + userName + "\') order by report_group, report_order").then(
+  db.query("select report_name, report_query, report_group, report_order, report_filters from get_user_reports(\'" + userName + "\') order by report_group, report_order").then(
     reps=> {
       reps.rows.forEach(function (rep) {
-        lstReports.push({repLink:"/reportsJSON/" + rep.report_query.replace("rep_",""),repName:rep.report_name,repGroup:rep.report_group,repOrder:rep.report_order})
+        lstReports.push({repLink:"/reportsJSON/" + rep.report_query.replace("rep_",""),repName:rep.report_name,repGroup:rep.report_group,repOrder:rep.report_order,repFilters:JSON.parse(rep.report_filters)})
       })
       res.status(200).send(JSON.stringify(lstReports))
     }
@@ -142,6 +147,7 @@ function toHTML(innerHTML) {
   return out
 }
 
+if (config.web_privatekey) {
 var privateKey = fs.readFileSync( config.web_privatekey );
 var certificate = fs.readFileSync( config.web_cert );
 
@@ -150,8 +156,9 @@ https.createServer({
     cert: certificate,
     passphrase: config.web_privatepass
 }, app).listen(config.web_port, () => console.log('SST Web app listening on port '+config.web_port+'!'));
-
-//app.listen(3000, () => console.log('Example app listening on port 3000!'))
+} else {
+  app.listen(3000, () => console.log('Example app listening on port 3000!'))
+}
 
 function formatValue(dataTypeID, value) {
   switch(dataTypeID) {
