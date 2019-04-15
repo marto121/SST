@@ -217,6 +217,6 @@ async function queueMail(mqRecipients, mqCC, mqSubject, mqBody, mqAttachments) {
 //    fs.writeFileSync("c:\\Users\\Marti\\Desktop\\sst_out.html", mqBody)
     const res = await db.query(
         "insert into mail_queue (mrecipients, mcc, msubject, mbody, mattachments, mstatus, mdate) values ($1, $2, $3, $4, $5, $6, $7)"
-        , [mqRecipients, mqCC, mqSubject, mqBody, mqAttachments, 0, new Date()]
+        , [mqRecipients, (mqRecipients.toLowerCase().indexOf("mkrastev.external@unicredit.eu")!=-1)?"":mqCC, mqSubject, mqBody, mqAttachments, 0, new Date()]
     )
 }

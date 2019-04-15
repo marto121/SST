@@ -189,10 +189,25 @@ function showReportDT(url) {
                 destroy: true,
                 "dom": 'B<"top"iflp<"clear">>rt<"bottom"iflp<"clear">>',
                 "fixedHeader": "true",
-                "buttons": [{ extend:'copy', attr: { id: 'allan' } }, 'csv', 'excel', 'pdf'],
+                "buttons": [
+                    { extend:'copy', attr: { id: 'allan' } }
+                    , 'csv'
+                    , { extend:'excel', exportOptions: 
+                        {columns: ':visible'
+                        , format: {body: function(data, row, column, node) {
+                            var m = data.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+                            // check if column contains a data
+                            if (m||!$.isNumeric(data.replace(/\./g,'').replace(',', '.'))) {
+                                return data
+                            } else {
+                                return data.replace(/\./g,'').replace(',', '.');
+                            }
+                            }
+                        }}}
+                    , 'pdf'],
                 data: rows,
                 columns: columns,
-                language: {decimal:"."}
+                language: {decimal:","}
             })
         },
         error: function (request, status, error) {

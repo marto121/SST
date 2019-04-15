@@ -14,7 +14,7 @@ try {
     console.log("ERROR: Connection failed: " + e.description)
 }
 
-function query(text, params, callback) {
+async function query(text, params, callback) {
     if (typeof pool != "undefined" && pool)
         return pool.query(text, params, callback);
     else
@@ -22,11 +22,11 @@ function query(text, params, callback) {
         return new Promise((resolve, reject)=>{resolve({rowCount:0, rows:[]})});
 }
 
-function log(src, Msg, log_type, m_ID) {
+async function log(src, Msg, log_type, m_ID) {
     var d = new Date();
     var datestring = d.getFullYear()  + "-" + (d.getMonth()+1) + "-" + d.getDate() + " " + d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
     console.log ( datestring, src, Msg )
-    query("insert into sst_log (log_date, log_source, log_text, log_type, mail_id) values (now(), $1, $2, $3, $4)",[src, Msg.substring(0,254), log_type, m_ID])
+    await query("insert into sst_log (log_date, log_source, log_text, log_type, mail_id) values (now(), $1, $2, $3, $4)",[src, Msg.substring(0,254), log_type, m_ID])
 }
 
 async function confirmMessage(confirm_m_ID, log_m_ID) {
@@ -53,12 +53,19 @@ async function changeMailStatus(m_ID, newStatus) {
     })
 }
 
+async function end() {
+    pool.end((m) => {
+        console.log('Pool has ended cleanly '+m)
+      })
+}
+
 module.exports = {
   query: query,
   log: log,
   performChecks: performChecks,
   performUpdates: performUpdates,
   confirmMessage: confirmMessage,
-  performFX, performFX,
-  changeMailStatus: changeMailStatus
+  performFX: performFX,
+  changeMailStatus: changeMailStatus,
+  end: end
 }

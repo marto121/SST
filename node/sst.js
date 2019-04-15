@@ -7,6 +7,7 @@ var sstApp = function() {
     const utils = require('./utils');
     const proxy = require('./proxy')
     const constants = require('./constants');
+    var reports = require('./reports');
     const db = require('./db');
     const fs = require('fs');
 
@@ -14,7 +15,10 @@ var sstApp = function() {
         var mails = proxy.execSync('cs_mail.js','checkMail')
         if (mails.hasOwnProperty("Error")) {
             await db.log("checkMail", "Error checking mail: " + JSON.stringify(mails.Error), constants.tSys, -1)
+            return "Error checking mail. Check Log for details"
         } else {
+            var receivedMails=0;
+            var errMails=0;
             for (const mail of mails) {
                 //mail: Sender, Recipients, Subject, Body, SpoofResult (0 = Pass), Attachments
                 var res = await db.query("select 1 from vwUserCountry where lower(email) = $1", [mail.Sender.toLowerCase()])
@@ -60,12 +64,15 @@ var sstApp = function() {
                             db.log("checkMail", "Error saving file " + config.SST_Att_Path + "\\" + targetFileName + ": " + e.message, constants.tWar, m_ID)
                         }
                     }
+                    receivedMails++;
                 } catch (e) {
                     db.log("checkMail", "Error inserting new mails: "+e.toString(), constants.tSys, -1);
+                    errMails++;
                 } finally {
 //                    await db.query("COMMIT")
                 }
             }
+            return receivedMails + " mail(s) received. " + ((errMails)? "Error inserting " + errMails + " mail(s)." : "" )
         }
     }
 
@@ -74,6 +81,7 @@ var sstApp = function() {
         for (const row of res.rows) {
             await processMail(row.id)
         }
+        return res.rowCount + " mail(s) processed."
     }
 
     async function processMail(m_ID) {
@@ -145,6 +153,7 @@ var sstApp = function() {
             db.log("processFiles", "End processing fileName " + fileName, constants.tLog, row.m_id)
             try {
                 await db.query("update file_log set fileStatus=$1, repLE=$2, repDate=$3 where id = $4", [parseResult.toStatus, parseResult.Rep_LE, parseResult.Rep_Date, row.id])
+                await db.query("update submission_monitoring set submission_m_id=ml.id, submission_date=now(), submission_user=ml.sender from file_log fl join mail_log ml on ml.id=fl.m_id join legal_entities le on le.tagetik_code=fl.repLE where fl.id=$1 and le_id=le.id and fl.repDate=Rep_Date",[row.id])
                 result ++;
             } catch (e) {
                 db.log("processFiles", "Error updating file_log!"+e.toString(), constants.tSys, row.m_id);
@@ -153,37 +162,57 @@ var sstApp = function() {
         return result;
     }
 
-    async function sendMails() {
+    async function sendMails(minId) {
         const mq = await db.query('select id, mRecipients, mCC, mSubject, mBody, mAttachments from Mail_Queue mq where mStatus=$1', [constants.statusReceived])
         var messages=[]
         for (const mqItem of mq.rows) {
             messages.push({ID: mqItem.id, Recipients: mqItem.mrecipients, CC: mqItem.mcc, Subject: mqItem.msubject, Body: mqItem.mbody, Attachments: mqItem.mattachments.split(";")})
+        }
+        const errs = await db.query('select count(id) cnt from sst_log where id > $1 and log_type=$2',[minId, constants.tSys])
+        if (errs.rows[0].cnt>0) {
+            var HTMLLog = await reports.createHTMLLog(-1, minId)
+            messages.push({ID: -1, Recipients: config.SST_Admin, CC: "", Subject: "SST Errors", Body: HTMLLog, Attachments: []})
         }
         var result = await proxy.exec('cs_mail.js','sendMail', messages)
 
         if (result.Error) {
             await db.log("sendMails", "Error sending mail: " + result.Error, constants.tSys, -1)
         } else {
+            var sentMails=0
+            var errSend=0
             for (const res of result) {
                 if(res.Status=="OK") {
                     await db.query("update mail_queue set mStatus=$1 where id=$2",[constants.statusProcessed, res.ID])
+                    sentMails++;
                 } else {
                     await db.log("sendMails", "Error updating sendMail status: " + res.Status, constants.tSys, -1)
+                    errSend++;
                 }
             }
+            return sentMails + " mail(s) sent." + ((errSend)? "Error sending " + errSend + " mail(s)." : "")
         }
     }
 
     async function run() {
         db.log("run", "SST App Starting...", constants.tLog, -1)
         var d = new Date()
-        checkMail().then(chkRes=>{
-            console.log("mail checked")
-            processMails().then(procRes=>{
-                sendMails().then(sendRes=>{
-                    db.log("run", "SST App Ending...", constants.tLog, -1)
-                })
-            })
+        var res = await db.query("select max(id) minId from sst_log")
+        var minId=res.rows[0].minid
+        checkMail()
+        .then(chkRes=>{
+            console.log("Mail checked: " + chkRes)
+            return processMails()
+        })
+        .then(procRes=>{
+            console.log("Mails processed: " + procRes)
+            return sendMails(minId)
+        })
+        .then(sendRes=>{
+            console.log("Messages sent: " + sendRes)
+            return db.log("run", "SST App Ending...", constants.tLog, -1)
+        })
+        .then(l=>{
+            db.end()
         })
     }
     

@@ -188,7 +188,7 @@ module.exports = {
         }
         if (Rep_Date < priorMonthEnd) {
             db.log ("Import", "Reporting date specified in the file (Sheet Title, Name=Rep_Date) is in the past. Loading aborted.", constants.tErr, m_ID)
-            return result
+        //    return result Just throw error but allow loading
         }
         if (Rep_Date < 201712) {
             db.log ("Import", "Reporting date specified in the file (Name=Rep_Date) is before 201712. Loading aborted.", constants.tErr, m_ID)
