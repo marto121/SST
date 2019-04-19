@@ -111,6 +111,7 @@ function generateForm(objText) {
             }
         });
     } else {
+        $("#tbResult").empty()
         showReportDT(objRep.repLink);
     }
 }

@@ -3,6 +3,7 @@
 var sstApp = function() {
     const ep=require('./excelParser')
     const mail = require('./mail')
+    const exchange = require('./exchange')
     const config = require('./config');
     const utils = require('./utils');
     const proxy = require('./proxy')
@@ -166,30 +167,38 @@ var sstApp = function() {
         const mq = await db.query('select id, mRecipients, mCC, mSubject, mBody, mAttachments from Mail_Queue mq where mStatus=$1', [constants.statusReceived])
         var messages=[]
         for (const mqItem of mq.rows) {
-            messages.push({ID: mqItem.id, Recipients: mqItem.mrecipients, CC: mqItem.mcc, Subject: mqItem.msubject, Body: mqItem.mbody, Attachments: mqItem.mattachments.split(";")})
+            var atts = []
+            mqItem.mattachments.split(";").forEach(function (att) {
+                if (att.trim()!="") atts.push(att)
+            })
+            messages.push({ID: mqItem.id, Recipients: mqItem.mrecipients, CC: mqItem.mcc, Subject: mqItem.msubject, Body: mqItem.mbody, Attachments: atts})
         }
         const errs = await db.query('select count(id) cnt from sst_log where id > $1 and log_type=$2',[minId, constants.tSys])
         if (errs.rows[0].cnt>0) {
             var HTMLLog = await reports.createHTMLLog(-1, minId)
             messages.push({ID: -1, Recipients: config.SST_Admin, CC: "", Subject: "SST Errors", Body: HTMLLog, Attachments: []})
         }
-        var result = await proxy.exec('cs_mail.js','sendMail', messages)
-
-        if (result.Error) {
-            await db.log("sendMails", "Error sending mail: " + result.Error, constants.tSys, -1)
-        } else {
-            var sentMails=0
-            var errSend=0
-            for (const res of result) {
-                if(res.Status=="OK") {
-                    await db.query("update mail_queue set mStatus=$1 where id=$2",[constants.statusProcessed, res.ID])
-                    sentMails++;
-                } else {
-                    await db.log("sendMails", "Error updating sendMail status: " + res.Status, constants.tSys, -1)
-                    errSend++;
+//        var result = await proxy.exec('cs_mail.js','sendMail', messages)
+        try {
+            var result = await exchange.sendMails(messages)
+            if (result.Error) {
+                await db.log("sendMails", "Error sending mail: " + result.Error, constants.tSys, -1)
+            } else {
+                var sentMails=0
+                var errSend=0
+                for (const res of result) {
+                    if(res.Status=="OK") {
+                        await db.query("update mail_queue set mStatus=$1 where id=$2",[constants.statusProcessed, res.ID])
+                        sentMails++;
+                    } else {
+                        await db.log("sendMails", "Error updating sendMail status: " + res.Status, constants.tSys, -1)
+                        errSend++;
+                    }
                 }
+                return sentMails + " mail(s) sent." + ((errSend)? "Error sending " + errSend + " mail(s)." : "")
             }
-            return sentMails + " mail(s) sent." + ((errSend)? "Error sending " + errSend + " mail(s)." : "")
+        } catch(e) {
+            await db.log("sendMails", "Error sending mails: " + e.message , constants.tSys, -1)
         }
     }
 
@@ -198,7 +207,7 @@ var sstApp = function() {
         var d = new Date()
         var res = await db.query("select max(id) minId from sst_log")
         var minId=res.rows[0].minid
-        checkMail()
+        exchange.checkMail()
         .then(chkRes=>{
             console.log("Mail checked: " + chkRes)
             return processMails()
