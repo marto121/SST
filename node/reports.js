@@ -111,7 +111,7 @@ async function invalidateFormulas(wb) {
 async function createHTMLLog(m_ID, fromID) {
     var tBody = ""
     var minID = fromID?fromID:0
-    const res = await db.query("select to_char(log_date,'DD.MM.YYYY HH24:MI:SS') as log_date,log_text,nom_log_types.color from SST_Log inner join nom_log_types on nom_log_types.id=sst_log.log_type where Mail_ID=$1 and SST_Log.ID>$2 order by sst_log.id",[m_ID, minID]);
+    const res = await db.query("select to_char(log_date,'DD.MM.YYYY HH24:MI:SS') as log_date,log_text,nom_log_types.color from SST_Log inner join nom_log_types on nom_log_types.id=sst_log.log_type where Mail_ID=case when $2 = 0 then $1 else Mail_ID end and SST_Log.ID>$2 order by sst_log.id",[m_ID, minID]);
     for (const row of res.rows ) {
         tBody += "<tr bgcolor='" + row.color + "'><td>" + row.log_date + "</td><td>" + row.log_text + "</td></tr>"
     }

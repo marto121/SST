@@ -26,7 +26,8 @@ async function prepareAnswer(m_ID) {
     if (res.rows.length>0) {
       const mSender=res.rows[0].sender
       mqRecipients = mSender
-      const mSubject=res.rows[0].subject
+      var mSubject=res.rows[0].subject
+      if(!mSubject) mSubject="";
       if(res.rows[0].authstatus==1) {
         if (res.rows[0].answerrecipients)
             addRecipients = res.rows[0].answerrecipients;
@@ -45,39 +46,40 @@ async function prepareAnswer(m_ID) {
             countryList += ", '" + row.mis_code + "'"
         }
         //check for command in Subject
-        if (mSubject.trim().substring(0,9)=="reqReport") {
-            var rName
-            var rID
-            if (mSubject.trim().substring(0,13)=="reqReportFull") {
-                rName = "reqReportFull"
-                rID=2 // Full report
-            } else {
-                rName = "reqReport"
-                rID=1 //' Report with only final Rentals/Appraisals/Insurances
-            }
-            db.log ("prepareAnswer", "Detected \"" + rName + "\" command. A template will be generated.", constants.tLog, m_ID)
-            var sel=""
-            if(mSubject.indexOf(":")!=-1) {
-                sel = mSubject.split(":")[1].trim()
-            }
-            if (sel!="") {
-                Rep_Country = sel
-                db.log ("prepareAnswer", "Detected country selection. Only Objects of " + Rep_Country + " will be selected.", constants.tLog, m_ID)
-                sel = " and Left(NPE_Code, 2) = '" + Rep_Country + "'"
-            }
-            if (Rep_Country!="") {
-                const res3 = await db.query("select Rep_LE from vw_CountryLE where MIS_Code = $1",[Rep_Country])
-                if (res3.rowCount>0) {
-                    Rep_LE = res3.rows[0].rep_le
-                } else {
-                    db.log ("prepareAnswer", "Error getting default Legal Entity for " + Rep_Country + ".", constants.tErr, m_ID)
-                }
-            }
-            attachment = await reports.createReport ( rID, m_ID, "where Left(NPE_Code, 2) in (" + countryList + ")" + sel, Rep_LE)
-            if (attachment!="") mqAttachments = attachment + ";";
-        } else if (mSubject.trim().substring(0,12)=="reqReminders"&&config.SST_Log_Recipients.toLowerCase().indexOf(mSender.toLowerCase())!=-1) {
+        if (mSubject&&mSubject.trim().substring(0,12)=="reqReminders"&&config.SST_Log_Recipients.toLowerCase().indexOf(mSender.toLowerCase())!=-1) {
             db.log ("prepareAnswer", "Detected \"reqReminders\" command. A reminder mail with attached template will be generated for each Legal Entity.", constants.tLog, m_ID)
             await createReminders(m_ID)
+        } else if (mSubject.trim().substring(0,3)=="req") {
+            const lstReports = await db.query("select id, report_name, reqCode from lst_reports where reqCode=$1",[mSubject.split(":")[0].trim()])
+            if (lstReports.rowCount>0) {
+                db.log ("prepareAnswer", "Detected report generation command.", constants.tLog, m_ID)
+                var sel=""
+                if(mSubject.indexOf(":")!=-1) {
+                    sel = mSubject.split(":")[1].trim()
+                }
+                if (sel!="") {
+                    Rep_Country = sel
+                    db.log ("prepareAnswer", "Detected country selection. Only Objects of " + Rep_Country + " will be selected.", constants.tLog, m_ID)
+                    sel = " and Left(NPE_Code, 2) = '" + Rep_Country + "'"
+                }
+                if (Rep_Country!="") {
+                    const res3 = await db.query("select Rep_LE from vw_CountryLE where MIS_Code = $1",[Rep_Country])
+                    if (res3.rowCount>0) {
+                        Rep_LE = res3.rows[0].rep_le
+                    } else {
+                        db.log ("prepareAnswer", "Error getting default Legal Entity for " + Rep_Country + ".", constants.tErr, m_ID)
+                    }
+                }
+                for (const repRow of lstReports.rows) {
+                    db.log("prepareAnswer", "Report \"" + repRow.report_name + "\" will be generated.", constants.tLog, m_ID)
+                    attachment = await reports.createReport ( repRow.id, m_ID, "where Left(NPE_Code, 2) in (" + countryList + ")" + sel, Rep_LE)
+                    if (attachment!="") {
+                        mqAttachments = attachment + ";";
+                    } else {
+                        db.log("prepareAnswer", "Error generating report \"" + repRow.report_name + "\".", constants.tWar, m_ID)
+                    }
+                }
+            }
         } else {
             db.log ("prepareAnswer", "No command found in E-mail subject", constants.tLog, m_ID)
         }
