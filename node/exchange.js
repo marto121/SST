@@ -374,6 +374,9 @@ function ewsCall(func, param) {
             }
         })
     })
+    .catch(function(err){
+        throw err;
+    })
  }
 function toArray(el) {
     if (Array.isArray(el))
@@ -432,130 +435,139 @@ async function checkMail_old() {
 }
 
 async function checkMail() {
-    var folderList = await ewsCall("getFolders")
-    var msgList = await ewsCall("checkMail", {folderList: folderList})
-    if (msgList) {
-        await db.log("checkMail", msgList.length + " unread message(s) found", constants.tLog, -1)
-        var msgData = await ewsCall("processMessages", {itemList: msgList})
-        var processedMsgs = []
-        var receivedMails=0;
-        var errMails=0;
-        for (msg of msgData.result) {
-            processedMsgs.push ({attributes: {Id: msg.Id}})
-            //mail: Sender, Recipients, Subject, Body, SpoofResult (0 = Pass), Attachments
-            var res = await db.query("select 1 from vwUserCountry where lower(email) = $1", [msg.Result.Sender.toLowerCase()])
-            var authStatus = 0
-            if (res.rowCount)
-                authStatus = 1
-//                await db.query("BEGIN")
-            try {
-                res = await db.query("insert into mail_log (sender, receiver, subject, body, mailstatus, authStatus) values ($1, $2, $3, $4, $5, $6) returning id", [msg.Result.Sender.toLowerCase(), msg.Result.Recipients.toLowerCase(), msg.Result.Subject, msg.Result.Body, constants.statusReceived, authStatus])
-                var m_ID = -1
+    try {
+        var folderList = await ewsCall("getFolders")
+        var msgList = await ewsCall("checkMail", {folderList: folderList})
+        if (msgList) {
+            await db.log("checkMail", msgList.length + " unread message(s) found", constants.tLog, -1)
+            var msgData = await ewsCall("processMessages", {itemList: msgList})
+            var processedMsgs = []
+            var receivedMails=0;
+            var errMails=0;
+            for (msg of msgData.result) {
+                processedMsgs.push ({attributes: {Id: msg.Id}})
+                //mail: Sender, Recipients, Subject, Body, SpoofResult (0 = Pass), Attachments
+                var res = await db.query("select 1 from vwUserCountry where lower(email) = $1", [msg.Result.Sender.toLowerCase()])
+                var authStatus = 0
                 if (res.rowCount)
-                    m_ID = res.rows[0].id
-                await db.log("checkMail", "New mail received from: " + msg.Result.Sender + " with subject: " + msg.Result.Subject + ". Starting processing.", constants.tLog, m_ID)
-                
-                if(msg.Result.Attachments.length>0) {
-                    pAttResult = await ewsCall("processAttachments", {itemList: msg.Result.Attachments})
-                    for (att of pAttResult.result) {
-                        var fStatus = constants.statusReceived
-                        const targetFileName =  utils.pad(m_ID, 4) + "_" + att.Result.fileName;
-                        if (att.Result.fileName.substring(0,3).toLowerCase()=="bc_"||att.Result.fileName.substring(0,3).toLowerCase()=="ec_") {
-                            var fileType = att.Result.fileName.substring(0,3).toUpperCase()
-                            var NPE_Code = att.Result.fileName.substring(3,11)
-                            const rsNPE = await db.query("select ID from NPE_List where m_ID=-1 and NPE_Code=$1",[NPE_Code])
-                            if (rsNPE.rowCount==0) {
-                                db.log("processMail", "Attachment " + att.Result.fileName + " looks like a " + fileType.substring(0,2) + ", but the NPE_Code is not recognized. Please name the file \'" + fileType + "_[NPE_Code]\'.", constants.tWar, m_ID)
+                    authStatus = 1
+    //                await db.query("BEGIN")
+                try {
+                    res = await db.query("insert into mail_log (sender, receiver, subject, body, mailstatus, authStatus) values ($1, $2, $3, $4, $5, $6) returning id", [msg.Result.Sender.toLowerCase(), msg.Result.Recipients.toLowerCase(), msg.Result.Subject, msg.Result.Body, constants.statusReceived, authStatus])
+                    var m_ID = -1
+                    if (res.rowCount)
+                        m_ID = res.rows[0].id
+                    await db.log("checkMail", "New mail received from: " + msg.Result.Sender + " with subject: " + msg.Result.Subject + ". Starting processing.", constants.tLog, m_ID)
+                    
+                    if(msg.Result.Attachments.length>0) {
+                        pAttResult = await ewsCall("processAttachments", {itemList: msg.Result.Attachments})
+                        for (att of pAttResult.result) {
+                            var fStatus = constants.statusReceived
+                            const targetFileName =  utils.pad(m_ID, 4) + "_" + att.Result.fileName;
+                            if (att.Result.fileName.substring(0,3).toLowerCase()=="bc_"||att.Result.fileName.substring(0,3).toLowerCase()=="ec_") {
+                                var fileType = att.Result.fileName.substring(0,3).toUpperCase()
+                                var NPE_Code = att.Result.fileName.substring(3,11)
+                                const rsNPE = await db.query("select ID from NPE_List where m_ID=-1 and NPE_Code=$1",[NPE_Code])
+                                if (rsNPE.rowCount==0) {
+                                    db.log("processMail", "Attachment " + att.Result.fileName + " looks like a " + fileType.substring(0,2) + ", but the NPE_Code is not recognized. Please name the file \'" + fileType + "_[NPE_Code]\'.", constants.tWar, m_ID)
+                                    NPE_Code = ""
+                                } else {
+                                    db.log("processMail", "Attachment: " + att.Result.fileName + " recognized as " + fileType.substring(0,2) + " for NPE_Code " + NPE_Code + " and stored.", constants.tWar, m_ID)
+                                }
+                                fStatus = constants.statusProcessed
+                            } else if (att.Result.fileName.split('.').pop().toLowerCase().substring(0,2) == "xl"){
+                                fileType = "SST"
                                 NPE_Code = ""
                             } else {
-                                db.log("processMail", "Attachment: " + att.Result.fileName + " recognized as " + fileType.substring(0,2) + " for NPE_Code " + NPE_Code + " and stored.", constants.tWar, m_ID)
+                                const fileExt = att.Result.fileName.split('.').pop().toLowerCase();
+                                // Disregard pics
+                                if (fileExt != 'png' && fileExt != 'gif' && fileExt != 'jpg') 
+                                    db.log("processMail", "Attachment: " + att.Result.fileName + " is not an Excel file (*.xl*), Business case (BC_*) or Exit Calculation (EC_*). Skipping ...", constants.tWar, m_ID)
+                                fStatus = constants.statusProcessed
                             }
-                            fStatus = constants.statusProcessed
-                        } else if (att.Result.fileName.split('.').pop().toLowerCase().substring(0,2) == "xl"){
-                            fileType = "SST"
-                            NPE_Code = ""
-                        } else {
-                            const fileExt = att.Result.fileName.split('.').pop().toLowerCase();
-                            // Disregard pics
-                            if (fileExt != 'png' && fileExt != 'gif' && fileExt != 'jpg') 
-                                db.log("processMail", "Attachment: " + att.Result.fileName + " is not an Excel file (*.xl*), Business case (BC_*) or Exit Calculation (EC_*). Skipping ...", constants.tWar, m_ID)
-                            fStatus = constants.statusProcessed
-                        }
-                        try {
-                            fs.writeFileSync(config.SST_Att_Path + "\\" + targetFileName, att.Result.fileContent,'base64');
-                            res = await db.query("insert into file_log (m_ID, fileName, filestatus, fileType, NPE_ID) values ($1, $2, $3, $4, $5)", [m_ID, config.SST_Att_Path + "\\" + targetFileName, fStatus, fileType, NPE_Code])
-                        } catch (e) {
-                            db.log("checkMail", "Error saving file " + config.SST_Att_Path + "\\" + targetFileName + ": " + e.message, constants.tWar, m_ID)
+                            try {
+                                fs.writeFileSync(config.SST_Att_Path + "\\" + targetFileName, att.Result.fileContent,'base64');
+                                res = await db.query("insert into file_log (m_ID, fileName, filestatus, fileType, NPE_ID) values ($1, $2, $3, $4, $5)", [m_ID, config.SST_Att_Path + "\\" + targetFileName, fStatus, fileType, NPE_Code])
+                            } catch (e) {
+                                db.log("checkMail", "Error saving file " + config.SST_Att_Path + "\\" + targetFileName + ": " + e.message, constants.tWar, m_ID)
+                            }
                         }
                     }
+                    receivedMails++;
+                } catch (e) {
+                    db.log("checkMail", "Error inserting new mails: "+e.toString(), constants.tSys, -1);
+                    errMails++;
+                } finally {
+    //                    await db.query("COMMIT")
                 }
-                receivedMails++;
-            } catch (e) {
-                db.log("checkMail", "Error inserting new mails: "+e.toString(), constants.tSys, -1);
-                errMails++;
-            } finally {
-//                    await db.query("COMMIT")
             }
+            for (const err of msgData.errors) {
+                await db.log("checkMail", "Error processing message " + err.Id + ": " + err.Result, constants.tSys, -1)
+    //            debug("error processing message " + err.Id + ": " + err.Result)
+            }
+            if (processedMsgs.length>0) {
+                var archived = await ewsCall("archiveMessages", {folderList: folderList, itemList: processedMsgs})
+                //debug ("archived: " + JSON.stringify(archived))
+            }
+            return receivedMails + " mail(s) received. " + ((errMails)? "Error inserting " + errMails + " mail(s)." : "" )
+        } else {
+    //        debug("No unread messages found")
+            await db.log("checkMail", "No unread messages found", constants.tLog, -1)
+            return "No unread messages found"
         }
-        for (const err of msgData.errors) {
-            await db.log("checkMail", "Error processing message " + err.Id + ": " + err.Result, constants.tSys, -1)
-//            debug("error processing message " + err.Id + ": " + err.Result)
-        }
-        if (processedMsgs.length>0) {
-            var archived = await ewsCall("archiveMessages", {folderList: folderList, itemList: processedMsgs})
-            //debug ("archived: " + JSON.stringify(archived))
-        }
-        return receivedMails + " mail(s) received. " + ((errMails)? "Error inserting " + errMails + " mail(s)." : "" )
-    } else {
-//        debug("No unread messages found")
-        await db.log("checkMail", "No unread messages found", constants.tLog, -1)
-        return "No unread messages found"
+    } catch (e) {
+        db.log("checkMail", "Error checking for mails: "+e.toString(), constants.tSys, -1);
     }
 }
 
 
 
 async function sendMails(mails) {
-    if (mails.length<=0)
-        return []
-//    var folderList = await ewsCall("getFolders")
-    var itemList = []
-    var sentMails = []
-    mails.forEach(function(m) {
-        if (!m.ID)
-            throw "Missing ID parameter from mail data"
-        itemList.push({attributes:{Id:m.ID}})
-    })
-    var draftMails = await ewsCall("saveMessages",{itemList: itemList, mails:mails})
-    var drafts = []
-    var index=0;
-    for (draft of draftMails.result) {
-        debug("Att: " + JSON.stringify(mails[index].Attachments))
-        if (mails[index].Attachments && mails[index].Attachments.length>0) {
-            var attIdList = []
-            mails[index].Attachments.forEach(function(att){
-                attIdList.push({attributes:{Id:att}})
-            })
-            var attResult = await ewsCall("createAttachments", {parentItemId: draft.Result, itemList: attIdList, attList: mails[index].Attachments})
-            if (attResult.result.length>0) {
-                drafts.push({attributes:{Id:attResult.result[0].Result.attributes.RootItemId,ChangeKey:attResult.result[0].Result.attributes.RootItemChangeKey}})
+    try {
+        if (mails.length<=0)
+            return []
+    //    var folderList = await ewsCall("getFolders")
+        var itemList = []
+        var sentMails = []
+        mails.forEach(function(m) {
+            if (!m.ID)
+                throw "Missing ID parameter from mail data"
+            itemList.push({attributes:{Id:m.ID}})
+        })
+        var draftMails = await ewsCall("saveMessages",{itemList: itemList, mails:mails})
+        var drafts = []
+        var index=0;
+        for (draft of draftMails.result) {
+            debug("Att: " + JSON.stringify(mails[index].Attachments))
+            if (mails[index].Attachments && mails[index].Attachments.length>0) {
+                var attIdList = []
+                mails[index].Attachments.forEach(function(att){
+                    attIdList.push({attributes:{Id:att}})
+                })
+                var attResult = await ewsCall("createAttachments", {parentItemId: draft.Result, itemList: attIdList, attList: mails[index].Attachments})
+                if (attResult.result.length>0) {
+                    drafts.push({attributes:{Id:attResult.result[0].Result.attributes.RootItemId,ChangeKey:attResult.result[0].Result.attributes.RootItemChangeKey}})
+                }
+            } else {
+                drafts.push({attributes:{Id: draft.Result.attributes.Id, ChangeKey: draft.Result.attributes.ChangeKey}})
             }
-        } else {
-            drafts.push({attributes:{Id: draft.Result.attributes.Id, ChangeKey: draft.Result.attributes.ChangeKey}})
+            sentMails.push({ID:mails[index].ID,Status:"OK"})
+            index++
         }
-        sentMails.push({ID:mails[index].ID,Status:"OK"})
-        index++
-    }
-    if (drafts.length>0) {
-        try {
-            var sendResult = await ewsCall("sendMessages", {itemList: drafts})
-            debug (JSON.stringify(sendResult))
-        } catch(e) {
-            debug ("error sending messages: " + e)
-            return {Error:e}
+        if (drafts.length>0) {
+            try {
+                var sendResult = await ewsCall("sendMessages", {itemList: drafts})
+                debug (JSON.stringify(sendResult))
+            } catch(e) {
+                debug ("error sending messages: " + e)
+                return {Error:e}
+            }
         }
+        return sentMails;
+    } catch (e) {
+//        db.log("sendMails", "Error sending mails: "+e.toString(), constants.tSys, -1);
+        return {Error:e}
     }
-    return sentMails;
 }
 
 function getSpoofResult(headers) {
