@@ -218,6 +218,48 @@ function showReportDT(url) {
     });
 }
 
+function showLog(m_ID) {
+    showDialog("/log/"+m_ID, "SST Log for m_ID {" + m_ID + "}")
+}
+
+function showMail(m_ID) {
+    showDialog("/mail/"+m_ID, "Data for m_ID {" + m_ID + "}")
+}
+
+function showDialog(url, title) {
+    $( "#dialog-message" ).empty();
+    $( "#dialog-message" ).append("Please wait ...")
+    $( "#dialog-message" ).dialog({
+        modal: true,
+        width: 800,
+        maxHeight: 600,
+        title: title,
+        open: function (event, ui) {
+            $(".ui-widget-overlay").addClass('modal-opened');
+        },
+        close: function(event, ui){
+            $(".ui-widget-overlay").removeClass('modal-opened');
+        }
+    });
+    $.ajax({
+        type: "GET",
+        url: url,
+//        data: query,
+        contentType: "text/html; charset=utf-8",
+//        dataType: "json",
+        success: function (result) {
+            $( "#dialog-message" ).empty();
+            $( "#dialog-message" ).append(result)
+            $( "#dialog-message" ).dialog();
+        },
+        error: function (request, status, error) {
+            $("#dialog-message").empty()
+            $("#dialog-message").append("<b>An error occured:</b><br>"+request.responseText+"");
+            $( "#dialog-message" ).dialog();
+        }
+    });
+}
+
 
 function autocomplete(inp, arr) {
     /*the autocomplete function takes two arguments,

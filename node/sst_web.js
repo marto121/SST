@@ -8,6 +8,24 @@ const express = require('express')
 const https = require('https')
 const app = express()
 
+const STATUS_CODES = require('http').STATUS_CODES;
+
+
+class HTTPError extends Error {
+  constructor(code, message, extras) {
+    super(message || STATUS_CODES[code]);
+    if (arguments.length >= 3 && extras) {
+      Object.assign(this, extras);
+    }
+    this.name = toName(code);
+    this.statusCode = code;
+  }
+}
+function toName (code) {
+  const suffix = (code / 100 | 0) === 4 || (code / 100 | 0) === 5 ? 'error' : '';
+  return (String(STATUS_CODES[code]).replace(/error$/i, ''), suffix);
+}
+
 app.use(express.static(config.SST_Root_Path))
 
 app.use(function (req, res, next) {
@@ -122,6 +140,134 @@ app.get('/--no-way--', (req, res) => {
     )
 })
 
+async function getRole(obj_ID, userName) {
+  if(!obj_ID.m_ID) obj_ID.m_ID=null
+  if(!obj_ID.f_ID) obj_ID.f_ID=null
+  return db.query("select u_web.role from mail_log ml join users u_send on lower(u_send.email)=lower(sender) join users u_web on u_web.le_id=u_send.le_id left join file_log fl on fl.m_id=ml.id where ml.id=coalesce($1, ml.id) and coalesce(fl.id,-1)=coalesce($2, coalesce(fl.id,-1)) and u_web.username=$3",[obj_ID.m_ID, obj_ID.f_ID, userName])
+  .then(qry=>{
+    if (qry.rows.length>0){
+      console.log(qry.rows)
+      return qry.rows[0].role;
+    } else {
+      return -1;
+    }
+  })
+}
+
+app.get('/log/:m_id', (req,res) => {
+  var userName = req.connection.user;
+  var m_ID = req.params.m_id;
+  getRole({m_ID: m_ID}, userName)
+  .then(role=>{
+    console.log(role)
+    if((!role) | (role==-1)) {
+      res.status(401).send("You are not authorized to view this log!")
+    } else {
+      var tBody = ""
+      db.query("select to_char(log_date,'DD.MM.YYYY HH24:MI:SS') as log_date,log_text,nom_log_types.color from SST_Log inner join nom_log_types on nom_log_types.id=sst_log.log_type where Mail_ID=$1 order by sst_log.id",[m_ID])
+      .then(qry=>{
+        for (const row of qry.rows ) {
+          tBody += "<tr bgcolor='" + row.color + "'><td>" + row.log_date + "</td><td>" + row.log_text + "</td></tr>"
+        }
+        var sHTML = "<table cellspacing='0' cellpadding='1' border='1'>"
+        +"<thead><th>Date</th><th>Message</th></thead>"
+        + tBody + "</table>"
+        res.status(200).send(sHTML)
+      })
+      .catch(err=>{
+        console.log(err)
+        res.status(400).send(err.toString())
+      })
+    }
+  })
+})
+
+app.get('/download/:file_id', (req,res) => {
+  var userName = req.connection.user;
+  var f_ID = req.params.file_id;
+  getRole({f_ID: f_ID}, userName)
+  .then(role=>{
+    if((!role) | (role==-1)) {
+      throw new HTTPError(401, "You are not authorized to download file with id {" + f_ID + "}!")
+    }
+  })
+  .then(()=>{
+    return db.query("select filename from file_log where id=$1",[f_ID])
+    .then(qry=>{
+      if (qry.rows.length>0) {
+        const file = qry.rows[0].filename;
+        res.download(file); // Set disposition and send it.
+      } else {
+        throw new HTTPError(400, "File with id {" + f_ID + "} not found!")
+      }
+    })
+  })
+  .catch(err=>{
+    console.log(err)
+    if (err instanceof HTTPError)
+      res.status(err.statusCode).send(err.message.padEnd(513," "))
+    else
+      res.status(500).send(err.toString().padEnd(513," "))
+  })
+})
+
+app.get('/mail/:m_id', (req,res) => {
+  var userName = req.connection.user;
+  var m_ID = req.params.m_id;
+  getRole({m_ID: m_ID}, userName)
+  .then(role=>{
+    if((!role) | (role==-1)) {
+      throw new HTTPError(401, "You are not authorized to view message with id {" + m_ID + "}!")
+    }
+  })
+  .then(()=>{
+    return db.query("select sender, receiver, subject, mailstatus, authstatus, answertext, answerrecipients, body from mail_log where id=$1",[m_ID])
+    .then(qry=>{
+      if(qry.rows.length>0){
+        var sHTML = "<table cellspacing='0' cellpadding='1' border='1'>"
+        var mail_data = qry.rows[0];
+        sHTML += "<tr><th>Log</th><td colspan='4'><a href=\"javascript:showLog(" + m_ID + ");\">View log</a></td></tr>"
+        if (mail_data.sender) {
+          sHTML += "<tr><th>Sender</th><td colspan='4'>"+mail_data.sender+"</td></tr>"
+        }
+        if (mail_data.receiver) {
+          sHTML += "<tr><th>Recipients</th><td colspan='4'>"+mail_data.receiver+"</td></tr>"
+        }
+        if (mail_data.subject) {
+          sHTML += "<tr><th>Subject</th><td colspan='4'>"+mail_data.subject+"</td></tr>"
+        }
+        if (mail_data.body) {
+          sHTML += "<tr><th>Body</th><td colspan='4'>"+mail_data.body+"...</td></tr>"
+        }
+        return sHTML
+      } else {
+        throw new HTTPError(400, "Mail with id {" + m_ID + "} not found!")
+      }
+    })
+  })
+  .then(sHTML=>{
+    return db.query("select id, filename, reple, to_char(repdate,'DD.MM.YYYY') repdate, filetype from file_log where m_id=$1 order by id",[m_ID])
+    .then(qry=>{
+      var attNo = 0;
+      if (qry.rows.length>0) {
+        sHTML += "<tr><th>Attachments</th><th>File</th><th>LE</th><th>Rep Date</th><th>File Type</th></tr>"
+      }
+      for (const row of qry.rows ) {
+        attNo++;
+        sHTML += "<tr><td>Attachment " + attNo + "</td><td><a href=\"/download/"+row.id+"\">" + row.filename.split(/[\\]+/).pop() + "</a></td><td>" + row.reple + "</td><td>" + row.repdate + "</td><td>" + row.filetype + "</td></tr>"
+      }
+      sHTML += "</table>"
+      res.status(200).send(sHTML)
+    })
+  })
+  .catch(err=>{
+    console.log(err)
+    if (err instanceof HTTPError)
+      res.status(err.statusCode).send(err.message.padEnd(513," "))
+    else
+      res.status(500).send(err.toString().padEnd(513," "))
+  })
+})
 
 app.get('/menu/lstReports', (req, res) => {
   var userName = req.connection.user
