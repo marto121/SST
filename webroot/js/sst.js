@@ -1,3 +1,4 @@
+const uploadHTML = "<input type=\"file\" id=\"sst-upload\" size=\"75\"/><div id=\"sst-upload-data\"></div><div id=\"sst-upload-progress\"></div><div id=\"sst-upload-result\"></div>"
 function myFunc() {
     var i = 1001.1
     alert (i.toLocaleString())
@@ -44,6 +45,12 @@ function fillList(list_name){
     });
 }
 
+function clearReport() {
+    if ( $.fn.dataTable.isDataTable( '#tbResult' ) ) {
+        $('#tbResult').DataTable().destroy();
+    }
+    $("#tbResult").empty()
+}
 function refreshReports()
 {
     $.ajax({
@@ -219,14 +226,90 @@ function showReportDT(url) {
 }
 
 function showLog(m_ID) {
-    showDialog("/log/"+m_ID, "SST Log for m_ID {" + m_ID + "}")
+    showDialog("/log/"+m_ID, "SST Log for m_ID  {<a href=\"javascript:showMail("+m_ID+");\">" + m_ID + "</a>} <a href=\"javascript:showLog(" + m_ID + ")\"><img src=\"images/sync.png\" alt=\"Refresh\" title=\"Refresh\"/></a>")
 }
 
 function showMail(m_ID) {
     showDialog("/mail/"+m_ID, "Data for m_ID {" + m_ID + "}")
 }
 
-function showDialog(url, title) {
+function showAnswer(m_ID) {
+    showDialog("/answer/"+m_ID, "Answer for m_ID {<a href=\"javascript:showMail("+m_ID+");\">" + m_ID + "</a>}")
+}
+
+function showUpload() {
+    showDialog(null ,"Upload SST File", uploadHTML)
+    $( "#sst-upload" ).change(function(){
+        var file = this.files[0];
+        $( "#sst-upload-data" ).empty()
+        // This code is only for demo ...
+        if (file.name) $( "#sst-upload-data" ).append("<p>File name: " + file.name);
+        if (file.size) $( "#sst-upload-data" ).append("<p>File size: " + file.size);
+        if (file.type) $( "#sst-upload-data" ).append("<p>File type: " + file.type);
+        if (file.lastModified) $( "#sst-upload-data" ).append("<p>File date: " + file.lastModified);
+        $( "#sst-upload-data" ).append("<button onclick=\"javascript:uploadFile()\">Upload SST File</button>")
+    });
+    
+}
+
+function uploadFile() {
+    var fd = new FormData();
+    fd.append("uploadingFile", $("#sst-upload").get(0).files[0]);
+    fd.append("date", (new Date()).toString()); // req.body.date
+    fd.append("comment", "This is a test."); // req.body.comment
+ 
+    var xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener("progress", uploadProgress, false);
+    xhr.addEventListener("load", uploadComplete, false);
+    xhr.addEventListener("error", uploadFailed, false);
+    xhr.addEventListener("abort", uploadCanceled, false);
+    xhr.open("POST", "/fileUpload");
+    xhr.send(fd);
+    /*
+    var xhr = $.ajax({
+        url: ‘/fileUpload’,
+        data: fd,
+        contentType: false,
+        processData: false,
+        type: ‘POST’
+    });
+    */
+}
+
+function uploadProgress(evt) {
+    if(evt.lengthComputable) {
+        var percentComplete = Math.round(evt.loaded / evt.total * 100);
+        $("#sst-upload-progress").text(percentComplete.toString() + "%");
+        $("#sst-upload-progress").append("<p>" + evt.loaded + " / " + evt.total);
+    } else {
+        $("#sst-upload-progress").text("unable to compute");
+    }
+}
+ 
+function uploadComplete(evt) {
+    uploadProgress(evt);
+    $("#sst-upload-result").empty()
+    $("#sst-upload-result").append(evt.target.responseText);
+}
+ 
+function uploadFailed(evt) {
+    $("#sst-upload-result").text("There was an error attempting to upload the file.");
+}
+ 
+function uploadCanceled(evt) {
+    $("#sst-upload-result").text("The upload has been canceled by the user or the browser dropped the connection.");
+}
+
+function showDialog(url, title, html) {
+    $.widget("ui.dialog", $.extend({}, $.ui.dialog.prototype, {
+        _title: function(title) {
+            if (!this.options.title ) {
+                title.html("&#160;");
+            } else {
+                title.html(this.options.title);
+            }
+        }
+    }));
     $( "#dialog-message" ).empty();
     $( "#dialog-message" ).append("Please wait ...")
     $( "#dialog-message" ).dialog({
@@ -234,6 +317,7 @@ function showDialog(url, title) {
         width: 800,
         maxHeight: 600,
         title: title,
+        position: { my: "top", at: "top"},
         open: function (event, ui) {
             $(".ui-widget-overlay").addClass('modal-opened');
         },
@@ -241,23 +325,36 @@ function showDialog(url, title) {
             $(".ui-widget-overlay").removeClass('modal-opened');
         }
     });
-    $.ajax({
-        type: "GET",
-        url: url,
-//        data: query,
-        contentType: "text/html; charset=utf-8",
-//        dataType: "json",
-        success: function (result) {
-            $( "#dialog-message" ).empty();
-            $( "#dialog-message" ).append(result)
-            $( "#dialog-message" ).dialog();
-        },
-        error: function (request, status, error) {
-            $("#dialog-message").empty()
-            $("#dialog-message").append("<b>An error occured:</b><br>"+request.responseText+"");
-            $( "#dialog-message" ).dialog();
-        }
-    });
+    if (url) {
+        $.ajax({
+            type: "GET",
+            url: url,
+    //        data: query,
+            contentType: "text/html; charset=utf-8",
+    //        dataType: "json",
+            success: function (result) {
+                $( "#dialog-message" ).empty();
+                $( "#dialog-message" ).append(html)
+                $( "#dialog-message" ).append(result)
+                $( "#dialog-message" ).dialog();
+                var accordion = $( "#accordion" );
+                if (accordion) accordion.accordion({collapsible:true,heightStyle:"content"});
+            },
+            error: function (request, status, error) {
+                $("#dialog-message").empty()
+                $("#dialog-message").append("<b>An error occured:</b><br>"+request.responseText+"");
+                $( "#dialog-message" ).dialog();
+            }
+        });
+    } else if (html) {
+        $( "#dialog-message" ).empty();
+        $( "#dialog-message" ).append(html)
+        $( "#dialog-message" ).dialog();
+    } else {
+        $( "#dialog-message" ).empty();
+        $( "#dialog-message" ).append("No URL or HTML provided!")
+        $( "#dialog-message" ).dialog();
+    }
 }
 
 

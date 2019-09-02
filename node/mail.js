@@ -151,7 +151,7 @@ async function prepareAnswer(m_ID) {
     }
     var htmlLog = await reports.createHTMLLog(m_ID)
     mqBody += "<p>" + mailText + "<p>" + htmlLog
-    await queueMail (mqRecipients, config.SST_Log_Recipients, mqSubject, mqBody, mqAttachments)
+    await queueMail (mqRecipients, config.SST_Log_Recipients, mqSubject, mqBody, mqAttachments, m_ID)
 }
 
 async function createReminders(m_ID) {
@@ -193,7 +193,7 @@ async function createReminders(m_ID) {
                             try {
                                 const mqAttachments = await reports.createReport ( 1, m_ID, "where Left(NPE_Code, 2) = '" + rLE.mis_code + "'", rLE.tagetik_code)
                                 try {
-                                    await queueMail (mqRecipients, mqCC, mqSubject, mqBody, mqAttachments)
+                                    await queueMail (mqRecipients, mqCC, mqSubject, mqBody, mqAttachments, m_ID)
                                 } catch (err) {
                                     db.log("createReminders", "Error queueing mail " + mqSubject + ": " + err.toString(), constants.tSys, m_ID)    
                                 }
@@ -214,11 +214,11 @@ async function createReminders(m_ID) {
     }
 }
 
-async function queueMail(mqRecipients, mqCC, mqSubject, mqBody, mqAttachments) {
+async function queueMail(mqRecipients, mqCC, mqSubject, mqBody, mqAttachments, m_ID) {
 //    console.log (mqRecipients, mqCC, mqSubject, mqAttachments)
 //    fs.writeFileSync("c:\\Users\\Marti\\Desktop\\sst_out.html", mqBody)
     const res = await db.query(
-        "insert into mail_queue (mrecipients, mcc, msubject, mbody, mattachments, mstatus, mdate) values ($1, $2, $3, $4, $5, $6, $7)"
-        , [mqRecipients, (mqRecipients.toLowerCase().indexOf("mkrastev.external@unicredit.eu")!=-1)?"":mqCC, mqSubject, mqBody, mqAttachments, 0, new Date()]
+        "insert into mail_queue (mrecipients, mcc, msubject, mbody, mattachments, mstatus, mdate, m_id) values ($1, $2, $3, $4, $5, $6, $7, $8)"
+        , [mqRecipients, (mqRecipients.toLowerCase().indexOf("mkrastev.external@unicredit.eu")!=-1)?"":mqCC, mqSubject, mqBody, mqAttachments, 0, new Date(), m_ID]
     )
 }

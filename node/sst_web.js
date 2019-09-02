@@ -2,9 +2,13 @@
 
 var config = require('./config')
 const db = require('./db')
+const utils = require('./utils');
+
 const fs = require('fs');
+const constants = require('./constants');
 
 const express = require('express')
+const fileUpload = require('express-fileupload');
 const https = require('https')
 const app = express()
 
@@ -27,55 +31,58 @@ function toName (code) {
 }
 
 app.use(express.static(config.SST_Root_Path))
+app.use(fileUpload());
 
 app.use(function (req, res, next) {
-    var nodeSSPI = require('node-sspi')
-    var nodeSSPIObj = new nodeSSPI({
-      retrieveGroups: true
-    })
-    nodeSSPIObj.authenticate(req, res, function(err){
-      res.finished || next()
-    })
+  var nodeSSPI = require('node-sspi')
+  var nodeSSPIObj = new nodeSSPI({
+    retrieveGroups: true
   })
-  app.use("/A", function(req, res, next) {
-    var out =
-      'Hello ' +
-      req.connection.user +
-      '! Your sid is ' +
-      req.connection.userSid +
-      ' and you belong to following groups:<br/><ul>'
-    if (req.connection.userGroups) {
-      for (var i in req.connection.userGroups) {
-        out += '<li>' + req.connection.userGroups[i] + '</li><br/>\n'
-      }
-    }
-    out += '</ul>'
-    res.send((toHTML(out)))
+  nodeSSPIObj.authenticate(req, res, function(err){
+    res.finished || next()
   })
+})
 
-  app.get('/reports/:queryName', function (req, res, next) {
-    console.log(req.params)
-    console.log(req.headers["accept-language"] )
-    var lang = req.headers["accept-language"]
-    db.query("select * from rep_" + req.params.queryName + " where le_id in (select le_id from users where username=\'"+ req.connection.user  +"\')").then(rs=> {
-        var t = "<table><tr>"
-        rs.fields.forEach(function(Field) {if(Field.name!="le_id")t+= "<th>"+Field.name+"</th>"})
-        t += '</tr>'
-        rs.rows.forEach(function(row) {
-          t += '<tr>';
-          Object.keys(row).forEach(function(key,index){
-              if(rs.fields[index].name!="le_id") t += "<td class=\"" + typeof(row[key]) + "\">"+ formatValue(rs.fields[index].dataTypeID, row[key]) + "</td>"
-          })
-          t += '</tr>'
+app.use("/A", function(req, res, next) {
+  var out =
+    'Hello ' +
+    req.connection.user +
+    '! Your sid is ' +
+    req.connection.userSid +
+    ' and you belong to following groups:<br/><ul>'
+  if (req.connection.userGroups) {
+    for (var i in req.connection.userGroups) {
+      out += '<li>' + req.connection.userGroups[i] + '</li><br/>\n'
+    }
+  }
+  out += '</ul>'
+  res.send((toHTML(out)))
+})
+
+app.get('/reports/:queryName', function (req, res, next) {
+  console.log(req.params)
+  console.log(req.headers["accept-language"] )
+  var lang = req.headers["accept-language"]
+  db.query("select * from rep_" + req.params.queryName + " where le_id in (select le_id from users where username=\'"+ req.connection.user  +"\')").then(rs=> {
+      var t = "<table><tr>"
+      rs.fields.forEach(function(Field) {if(Field.name!="le_id")t+= "<th>"+Field.name+"</th>"})
+      t += '</tr>'
+      rs.rows.forEach(function(row) {
+        t += '<tr>';
+        Object.keys(row).forEach(function(key,index){
+            if(rs.fields[index].name!="le_id") t += "<td class=\"" + typeof(row[key]) + "\">"+ formatValue(rs.fields[index].dataTypeID, row[key]) + "</td>"
         })
-        t += '</table>'
-        res.status(200).send(toHTML(t))
-    })
-    .catch(err=>{
-        console.log(err)
-        res.status(400).send(toHTML(err.toString()))
-    })
+        t += '</tr>'
+      })
+      t += '</table>'
+      res.status(200).send(toHTML(t))
+  })
+  .catch(err=>{
+      console.log(err)
+      res.status(400).send(toHTML(err.toString()))
+  })
 });
+
 app.get('/reportsJSON/:queryName', function (req, res, next) {
   console.log(req.query)
   console.log(req.headers["accept-language"] )
@@ -143,10 +150,11 @@ app.get('/--no-way--', (req, res) => {
 async function getRole(obj_ID, userName) {
   if(!obj_ID.m_ID) obj_ID.m_ID=null
   if(!obj_ID.f_ID) obj_ID.f_ID=null
-  return db.query("select u_web.role from mail_log ml join users u_send on lower(u_send.email)=lower(sender) join users u_web on u_web.le_id=u_send.le_id left join file_log fl on fl.m_id=ml.id where ml.id=coalesce($1, ml.id) and coalesce(fl.id,-1)=coalesce($2, coalesce(fl.id,-1)) and u_web.username=$3",[obj_ID.m_ID, obj_ID.f_ID, userName])
+  if(!obj_ID.q_ID) obj_ID.q_ID=null
+  return db.query("select u_web.role from mail_log ml join users u_send on lower(u_send.email)=lower(sender) join users u_web on u_web.le_id=u_send.le_id left join file_log fl on fl.m_id=ml.id left join mail_queue mq on mq.m_id=ml.id where ml.id=coalesce($1, ml.id) and coalesce(fl.id,-1)=coalesce($2, coalesce(fl.id,-1)) and coalesce(mq.id,-1)=coalesce($3, coalesce(mq.id,-1)) and u_web.username=$4",[obj_ID.m_ID, obj_ID.f_ID, obj_ID.q_ID, userName])
   .then(qry=>{
     if (qry.rows.length>0){
-      console.log(qry.rows)
+//      console.log(qry.rows)
       return qry.rows[0].role;
     } else {
       return -1;
@@ -159,7 +167,7 @@ app.get('/log/:m_id', (req,res) => {
   var m_ID = req.params.m_id;
   getRole({m_ID: m_ID}, userName)
   .then(role=>{
-    console.log(role)
+//    console.log(role)
     if((!role) | (role==-1)) {
       res.status(401).send("You are not authorized to view this log!")
     } else {
@@ -211,6 +219,36 @@ app.get('/download/:file_id', (req,res) => {
   })
 })
 
+app.get('/downloadOut/:file_id', (req,res) => {
+  var userName = req.connection.user;
+  var q_ID = req.params.file_id.split("_")[0];
+  var f_No = req.params.file_id.split("_")[1];
+  getRole({q_ID: q_ID}, userName)
+  .then(role=>{
+    if((!role) | (role==-1)) {
+      throw new HTTPError(401, "You are not authorized to download files from queue with id {" + q_ID + "}!")
+    }
+  })
+  .then(()=>{
+    return db.query("select mattachments from mail_queue where id=$1",[q_ID])
+    .then(qry=>{
+      if (qry.rows.length>0) {
+        const file = qry.rows[0].mattachments.split(";")[f_No];
+        res.download(file); // Set disposition and send it.
+      } else {
+        throw new HTTPError(400, "Queue with id {" + q_ID + "} not found!")
+      }
+    })
+  })
+  .catch(err=>{
+    console.log(err)
+    if (err instanceof HTTPError)
+      res.status(err.statusCode).send(err.message.padEnd(513," "))
+    else
+      res.status(500).send(err.toString().padEnd(513," "))
+  })
+})
+
 app.get('/mail/:m_id', (req,res) => {
   var userName = req.connection.user;
   var m_ID = req.params.m_id;
@@ -227,6 +265,7 @@ app.get('/mail/:m_id', (req,res) => {
         var sHTML = "<table cellspacing='0' cellpadding='1' border='1'>"
         var mail_data = qry.rows[0];
         sHTML += "<tr><th>Log</th><td colspan='4'><a href=\"javascript:showLog(" + m_ID + ");\">View log</a></td></tr>"
+        sHTML += "<tr><th>Answer</th><td colspan='4'><a href=\"javascript:showAnswer(" + m_ID + ");\">View answer</a></td></tr>"
         if (mail_data.sender) {
           sHTML += "<tr><th>Sender</th><td colspan='4'>"+mail_data.sender+"</td></tr>"
         }
@@ -269,6 +308,67 @@ app.get('/mail/:m_id', (req,res) => {
   })
 })
 
+app.get('/answer/:m_id', (req,res) => {
+  var userName = req.connection.user;
+  var m_ID = req.params.m_id;
+  getRole({m_ID: m_ID}, userName)
+  .then(role=>{
+    if((!role) | (role==-1)) {
+      throw new HTTPError(401, "You are not authorized to view answer for message with id {" + m_ID + "}!")
+    }
+  })
+  .then(()=>{
+    return db.query("select id, mrecipients, mcc, msubject, mbody, mattachments, mstatus, mdate, m_id from mail_queue where m_id=$1",[m_ID])
+    .then(qry=>{
+      if(qry.rows.length>0){
+        var sHTML = "<div id=\"accordion\">"
+        var r=0;
+        qry.rows.forEach(mail_data=>{
+          r++
+          sHTML += "<h3>" + ((qry.rows.length>1) ? " (" + r + " of " + qry.rows.length + ") ":"") + mail_data.msubject + "</h3>"
+          sHTML += "<div><table cellspacing='0' cellpadding='1' border='1'>"
+          sHTML += "<tr><th>Original mail</th><td colspan='4'><a href=\"javascript:showMail(" + m_ID + ");\">View original mail</a></td></tr>"
+          if (mail_data.mrecipients) {
+            sHTML += "<tr><th>Recipients</th><td colspan='4'>"+mail_data.mrecipients+"</td></tr>"
+          }
+          if (mail_data.mcc) {
+            sHTML += "<tr><th>CC</th><td colspan='4'>"+mail_data.mcc+"</td></tr>"
+          }
+          if (mail_data.msubject) {
+            sHTML += "<tr><th>Subject</th><td colspan='4'>"+mail_data.msubject+"</td></tr>"
+          }
+          if (mail_data.mbody) {
+            sHTML += "<tr><th>Body</th><td colspan='4'>"+mail_data.mbody+"</td></tr>"
+          }
+          if (mail_data.mattachments) {
+            sHTML += "<tr><th>Attachments</th><td colspan='4'>"
+            mail_data.mattachments.split(";").forEach(att=>{
+              var a=0
+              if (att.trim()!="") {
+                sHTML+= "<a href=\"/downloadOut/"+mail_data.id+"_"+a+"\">" + att.split(/[\\]+/).pop() + "</a>"
+                a++
+              }
+            })
+            sHTML += "</td></tr>"
+          }
+          sHTML += "</table></div>"
+        })
+        sHTML += "</div>"
+        res.status(200).send(sHTML)
+      } else {
+        throw new HTTPError(400, "No answer found for mail with id {" + m_ID + "}!")
+      }
+    })
+  })
+  .catch(err=>{
+    console.log(err)
+    if (err instanceof HTTPError)
+      res.status(err.statusCode).send(err.message.padEnd(513," "))
+    else
+      res.status(500).send(err.toString().padEnd(513," "))
+  })
+})
+
 app.get('/menu/lstReports', (req, res) => {
   var userName = req.connection.user
   var lstReports=[]
@@ -285,6 +385,101 @@ app.get('/menu/lstReports', (req, res) => {
 })
 
 })
+
+app.post('/fileUpload', (req, res) => {
+  var userName = req.connection.user
+  if (Object.keys(req.files).length == 0) {
+    return res.status(400).send('No files were uploaded.');
+  }
+  //console.log(JSON.stringify(req))
+//  console.log(req.body);
+//  console.log(req.files);
+
+  var uploadedFile = req.files.uploadingFile;
+  
+  db.query("insert into mail_log (sender, receiver, subject, body, mailstatus, authStatus) select max(email), $2, $3, $4, $5, $6 from users where username = $1 returning id", [userName, "uctam_sst@unicredit.eu", "Web file upload " + uploadedFile.name, "Web file upload " + uploadedFile.name, constants.statusReceived, /*authStatus*/ 1])
+  .then(res => {
+    var m_ID = -1
+    if (res.rowCount)
+        m_ID = res.rows[0].id
+    else {
+      db.log("fileUpload", "New file uploaded by " + userName + ": " + uploadedFile.name + ". Starting processing.", constants.tLog, m_ID)
+      throw new Error("User " + userName + " not registered in SST!")
+    }
+    db.log("fileUpload", "New file uploaded by " + userName + ": " + uploadedFile.name + ". Starting processing.", constants.tLog, m_ID)
+    return m_ID
+  })
+  .then(m_ID => {
+    return new Promise((resolve,reject) => { 
+      var ret = {
+        m_ID: m_ID,
+        fileType: uploadedFile.name.substring(0,3).toUpperCase(),
+        NPE_Code: uploadedFile.name.substring(3,11),
+        fStatus: constants.statusReceived
+      }
+      if (uploadedFile.name.substring(0,3).toLowerCase()=="bc_"||uploadedFile.name.substring(0,3).toLowerCase()=="ec_") {
+          return db.query("select ID from NPE_List where m_ID=-1 and NPE_Code=$1",[NPE_Code])
+          .then(rsNPE=>{
+            if (rsNPE.rowCount==0) {
+                db.log("fileUpload", "Uploaded file " + uploadedFile.name + " looks like a " + ret.fileType.substring(0,2) + ", but the NPE_Code is not recognized. Please name the file \'" + ret.fileType + "_[NPE_Code]\'.", constants.tWar, m_ID)
+                ret.NPE_Code = ""
+            } else {
+                db.log("fileUpload", "Uploaded file " + uploadedFile.name + " recognized as " + ret.fileType.substring(0,2) + " for NPE_Code " + ret.NPE_Code + " and stored.", constants.tWar, m_ID)
+            }
+            ret.fStatus = constants.statusProcessed
+            resolve(ret)
+          })
+      } else if (uploadedFile.name.split('.').pop().toLowerCase().substring(0,2) == "xl"){
+          ret.fileType = "SST"
+          ret.NPE_Code = ""
+      } else {
+          const fileExt = uploadedFile.name.split('.').pop().toLowerCase();
+          // Disregard pics
+          if (fileExt != 'png' && fileExt != 'gif' && fileExt != 'jpg') 
+              db.log("fileUpload", "Uploaded file " + uploadedFile.name + " is not an Excel file (*.xl*), Business case (BC_*) or Exit Calculation (EC_*). Skipping ...", constants.tWar, m_ID)
+          ret.fStatus = constants.statusProcessed
+      }
+      resolve(ret)
+    })
+  })
+  .then(ret=>{
+    ret.targetFileName =  utils.pad(ret.m_ID, 4) + "_" + uploadedFile.name;
+    return uploadedFile.mv(config.SST_Att_Path + "\\" + ret.targetFileName)
+    .then(()=>{return ret})
+    .catch(e=>{
+      db.log("fileUpload", "Error saving file " + config.SST_Att_Path + "\\" + ret.targetFileName + ": " + e.message, constants.tWar, ret.m_ID)
+      res.status(500).send(("Error saving file " + config.SST_Att_Path + "\\" + ret.targetFileName + ": " + e.message).padEnd(513," "))
+    })
+  })
+  .then(ret=>{
+      return db.query("insert into file_log (m_ID, fileName, filestatus, fileType, NPE_ID) values ($1, $2, $3, $4, $5)", [ret.m_ID, config.SST_Att_Path + "\\" + ret.targetFileName, ret.fStatus, ret.fileType, ret.NPE_Code])
+      .then(()=>{return ret})
+  })
+  .then(ret=>{
+    res.status(200).send("<span>File upload successful!</span> <a href=\"javascript:showLog("+ret.m_ID+")\">(view log)</a>")
+  })
+  .catch (err=>{
+    db.log("fileUpload", "Error uploading file: "+err.toString(), constants.tSys, -1);
+    res.status(500).send(("Error uploading file: "+err.toString()).padEnd(513," "))
+  })
+
+  
+/*  
+  var targetPath = './uploads/' + uploadedFile.name;
+
+
+
+
+  fs.rename(tmpPath, targetPath, function(err) {
+  if (err) throw err;
+  fs.unlink(tmpPath, function() {
+      if (err) throw err;
+          res.send('File Uploaded to ' + targetPath + ' - ' + uploadedFile.size + ' bytes');
+      });
+  });
+*/
+
+});
 
 function toHTML(innerHTML) {
   var out = "<html><head><title>UCTAM SST</title><link rel=\"stylesheet\" href=\"/css/sst.css\"></head><body>"
