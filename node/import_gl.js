@@ -17,45 +17,57 @@ const parseOpts = {
     HU   : {shNames: getSheets_HU,  dateFunc: getDate_HU, parseFunc: parseRow_HU, entityFunc: getEntity_HU}, //HU
     A2643: {shNames: function() {return [{name: 'Registrul jurnal'}]}, dateFunc: getDate_A2643, parseFunc: parseRow_A2643}, //RO
     RS: {shNames: function() {return [{name: 'APD'},{name: 'Uctam'}]}, dateFunc: getDate_RS, parseFunc: parseRow_RS, entityFunc: getEntity_RS}, //RS
+    A2604: {shNames: function() {return [{name: 'TDSheet'}]}, dateFunc: getDate_A2604, parseFunc: parseRow_A2604}, //RU
 }
-/*import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\SI\\UCTAM - Einzelnachweis KORE_07.2019.xlsb","A2588",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201901-02\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 01.2019.xlsx","RS",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201901-02\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 02.2019.xlsx","RS",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201903\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 03.2019.xlsx","RS",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201904\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 04.2019.xlsx","RS",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201905\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 05.2019.xlsx","RS",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201906\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 06.2019.xlsx","RS",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 07.2019.xlsx","RS",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201901-02\\RO\\Registru jurnal UCTAM 01-2019.xlsx","A2643",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201901-02\\RO\\Registru jurnal UCTAM 02-2019.xlsx","A2643",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201903\\RO\\Registru jurnal UCTAM 03-2019.xlsx","A2643",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201904\\RO\\Registru jurnal UCTAM 04-2019.xlsx","A2643",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201905\\RO\\Registru jurnal UCTAM 05-2019.xlsx","A2643",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201906\\RO\\Registru jurnal UCTAM 06-2019.xlsx","A2643",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\RO\\Registru jurnal UCTAM 07-2019.xlsx","A2643",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\HU\\Cost monitoring by CEE _31072019.xlsx","HU",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\HR\\General ledger 07-2019.xlsx","A3234",-1)
-*/import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\CZ\\UCM_Deník_3172019.xls","A2769",-1)
-/*import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\CZ\\UCTAMSVK_Journal_01-07_2019.xlsx","A3163",-1)
-import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\BH\\Detalji knjiženja_glavna knjiga-01.01.-31.07..xlsx","A3214",-1)
+/*import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\SI\\UCTAM - Einzelnachweis KORE_07.2019.xlsb","A2588",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201901-02\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 01.2019.xlsx","RS",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201901-02\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 02.2019.xlsx","RS",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201903\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 03.2019.xlsx","RS",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201904\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 04.2019.xlsx","RS",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201905\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 05.2019.xlsx","RS",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201906\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 06.2019.xlsx","RS",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 07.2019.xlsx","RS",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201901-02\\RO\\Registru jurnal UCTAM 01-2019.xlsx","A2643",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201901-02\\RO\\Registru jurnal UCTAM 02-2019.xlsx","A2643",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201903\\RO\\Registru jurnal UCTAM 03-2019.xlsx","A2643",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201904\\RO\\Registru jurnal UCTAM 04-2019.xlsx","A2643",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201905\\RO\\Registru jurnal UCTAM 05-2019.xlsx","A2643",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201906\\RO\\Registru jurnal UCTAM 06-2019.xlsx","A2643",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\RO\\Registru jurnal UCTAM 07-2019.xlsx","A2643",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\HU\\Cost monitoring by CEE _31072019.xlsx","HU",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\HR\\General ledger 07-2019.xlsx","A3234",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\CZ\\UCM_Deník_3172019.xls","A2769",-1)
+/*import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\CZ\\UCTAMSVK_Journal_01-07_2019.xlsx","A3163",-1)
+import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\BH\\Detalji knjiženja_glavna knjiga-01.01.-31.07..xlsx","A3214",-1)
 */
 
-//import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201904\\BG\\MIS 2019_UCTAM_BG.xlsx","A2736",-1)
-//import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201905\\BG\\MIS 2019_UCTAM_BG.xlsx","A2736",-1)
-//import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201906\\BG\\MIS 2019_UCTAM_BG.xlsx","A2736",-1)
-//import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\BG\\Mis 07.2019_sent.xlsx","A2736",-1)
-/*import_tb("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\LV\\07 UCTAM report Jul 2019 (management).xlsx","A2572",-1)
+//import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201904\\BG\\MIS 2019_UCTAM_BG.xlsx","A2736",-1)
+//import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201905\\BG\\MIS 2019_UCTAM_BG.xlsx","A2736",-1)
+//import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201906\\BG\\MIS 2019_UCTAM_BG.xlsx","A2736",-1)
+//import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\BG\\Mis 07.2019_sent.xlsx","A2736",-1)
+/*import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\LV\\07 UCTAM report Jul 2019 (management).xlsx","A2572",-1)
 
 /*
-import_tb("J:\\UCTAMCEE\\CFO\\0002 Controlling\\Data received\\2018\\201808\\HR\\Trial balance on 31.08.2018..xlsx","A3234",-1)
-import_tb("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_06.2018.xlsb","A2588",-1)
-import_tb("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_05.2018.xlsb","A2588",-1)
-import_tb("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_04.2018.xlsb","A2588",-1)
-import_tb("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_03.2018 V4.xlsb","A2588",-1)
-import_tb("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_02.2018 V4.xlsb","A2588",-1)
-import_tb("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_01.2018 V4.xlsb","A2588",-1)
+import_gl("J:\\UCTAMCEE\\CFO\\0002 Controlling\\Data received\\2018\\201808\\HR\\Trial balance on 31.08.2018..xlsx","A3234",-1)
+import_gl("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_06.2018.xlsb","A2588",-1)
+import_gl("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_05.2018.xlsb","A2588",-1)
+import_gl("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_04.2018.xlsb","A2588",-1)
+import_gl("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_03.2018 V4.xlsb","A2588",-1)
+import_gl("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_02.2018 V4.xlsb","A2588",-1)
+import_gl("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_01.2018 V4.xlsb","A2588",-1)
 */
-async function import_tb(fName, LE, m_ID) {
+//import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\RU\\Expenses 01012019-31072019.xls","A2604")
+async function import_gl(fName, LE, m_ID) {
+    //{toStatus, Rep_LE, Rep_Date}
+    const chkRights = await db.query("select * from vw_LE_Sender where Tagetik_Code=$1 and id=$2",[LE, m_ID])
+    if (chkRights.rows==0) {
+        db.log ("import_gl", "You are not allowed to work with Legal Entity " + LE + ". Processing stopped.", constants.tErr, m_ID)
+        return {toStatus: constants.statusRejected, Rep_LE: LE, Rep_Date: null}
+    }
+if (!parseOpts[LE]) {
+        db.log ("import_gl", "No definition found for reading GL of LE " + LE,  constants.tErr, m_ID)
+        return {toStatus: constants.statusRejected, Rep_LE: LE, Rep_Date: null}
+    }
     if(fName.substring(fName.length-5).toLowerCase()=='.xlsb' || fName.substring(fName.length-4).toLowerCase()=='.xls') {
         try {
             var workbook = await XLSX.readFile(fName,{cellDates:true, cellStyles:true, cellNF:true});
@@ -63,15 +75,15 @@ async function import_tb(fName, LE, m_ID) {
             fName = os.tmpdir() + "\\" + fName.split("\\").pop() + '.xlsx'
             await XLSX.writeFile(workbook, fName);
         } catch (e) {
-            console.log(e)
-            db.log ("Import", "Error parsing excel file \":" + fName + "\". The error is " + e.toString(),  constants.tSys, m_ID)
+            //console.log(e)
+            db.log ("import_gl", "Error parsing excel file \":" + fName + "\". The error is " + e.toString(),  constants.tSys, m_ID)
             return result;
         }
     }
     var wb = new Excel.Workbook();
-    var wbOut = new Excel.Workbook();
-    var shOut = wbOut.addWorksheet("Data")
-    shOut.columns = [
+//    var wbOut = new Excel.Workbook();
+//    var shOut = wbOut.addWorksheet("Data")
+/*    shOut.columns = [
         { header:'subAsset', key:'subAsset' },
         { header:'docDate', key:'docDate' },
         { header:'bookDate', key:'bookDate' },
@@ -91,7 +103,7 @@ async function import_tb(fName, LE, m_ID) {
         { header:'docText', key:'docText' },
         { header:'LE_Code', key:'LE_Code' },
         { header:'debug', key:'debug'}
-    ]
+    ]*/
     var insert_sql = "INSERT INTO public.gl_data(/*id,*/ subasset, docdate, bookdate, docnom, countname, countid, accno, opType, /*accnoct, accnodt, */accname, docref, ccy, amtccy, fx, amtfx, doctext, le_code, debug) values "
     //insert_sql+="VALUES (/*?,*/ $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18);"
     try {
@@ -138,7 +150,7 @@ async function import_tb(fName, LE, m_ID) {
                     for (const row of rows) {
                         if (row&&row.amtCCY) {
                             row.LE_Code = LE_Code
-                            shOut.addRow(row)
+                            //shOut.addRow(row)
                             values += "("
                             values += ((row.subAsset) ? "'"+row.subAsset+"'": "null")+","
                             values += ((row.docDate) ? "'"+db.dbDate(row.docDate).split("T")[0]+"'": "null")+","
@@ -182,13 +194,17 @@ async function import_tb(fName, LE, m_ID) {
                     await db.query(insert_sql + values.substring(0,values.length-1))
                 }
             } catch (e) {
-                console.log(fName, rowNum, LE, Rep_Date, rows, e.toString())
+//                console.log(fName, rowNum, LE, Rep_Date, rows, e.toString())
+                db.log ("import_gl", "Error parsing excel file:\"" + fName + "\" at row " +rowNum + ". The error is " + e.toString(),  constants.tErr, m_ID)
                 break
             }
         }
         console.log("Loaded "+fName)
+        db.log ("import_gl", "Successfully imported GL file\":" + fName + "\".",  constants.tLog, m_ID)
+        return {toStatus: constants.statusProcessed, Rep_LE: LE, Rep_Date: Rep_Date.endDate}
         wbOut.xlsx.writeFile("C:\\Temp\\" + LE + ".xlsx")
     } catch(e) {
+        db.log ("import_gl", "Error parsing excel file\":" + fName + "\". The error is " + e.toString(),  constants.tSys, m_ID)
         console.log(e)
     }
 }
@@ -440,6 +456,53 @@ function parseRow_A3234(row) {
     }
 }
 
+/* UCTAM Russia */
+function getDate_A2604(sh) {
+    //Expenses 01012019-31072019.xlsx
+    var sDay = sh.workbook.name.substring(sh.workbook.name.length-22-4).substring(0,2)
+    var sMonth = sh.workbook.name.substring(sh.workbook.name.length-20-4).substring(0,2);
+    var sYear = sh.workbook.name.substring(sh.workbook.name.length-18-4).substring(0,4);
+    var eDay = sh.workbook.name.substring(sh.workbook.name.length-13-4).substring(0,2)
+    var eMonth = sh.workbook.name.substring(sh.workbook.name.length-11-4).substring(0,2);
+    var eYear = sh.workbook.name.substring(sh.workbook.name.length-9-4).substring(0,4);
+    var sdt = new Date(parseInt(sYear),parseInt(sMonth)-1,parseInt(sDay));
+    var edt = new Date(parseInt(eYear),parseInt(eMonth)-1,parseInt(eDay));
+    return {startDate: sdt, endDate: edt};
+    return dt;
+}
+
+function parseRow_A2604(row) {
+    if(row.number>1&&row.getCell(1).value) {
+        var res = {}
+        var amt = getAmt(row.getCell(13).value)
+        //res.subAsset = row.getCell(17).value;
+        //res.docDate = row.getCell(10).value;
+        //res.bookDate = row.getCell(3).value; booking date
+        var dt = row.getCell(2).value.split("."); // value date
+
+        res.bookDate = new Date(parseInt(dt[2].substring(0,4)),parseInt(dt[1])-1, parseInt(dt[0]));
+        //res.docNom = row.getCell(7).value
+        //res.countName = row.getCell(12).value
+        //res.countID = row.getCell(11).value
+        res.opType = "DT"
+        res.accNo = row.getCell(5).value
+        res.accName = row.getCell(6).value + "~" + row.getCell(7).value + "~" + row.getCell(8).value
+        res.docRef = row.getCell(3).value
+        res.CCY = 'RUB'
+        res.amtCCY = - amt
+//        res.FX = getCCY(row.getCell(25).value)
+//        res.amtFX = -getAmt(row.getCell(29).value)
+        res.docText = row.getCell(14).value
+        var res2 = Object.assign({}, res)
+        res2.accNo = row.getCell(9).value
+        res2.opType = "CT"
+        res2.accName = row.getCell(10).value + "~" + row.getCell(11).value + "~" + row.getCell(12).value
+    return [res, res2]
+    } else {
+        return []
+    }
+}
+    
 function getCCY(num) {
     if (num=='001')
         return 'HRK'
@@ -673,3 +736,48 @@ function getAmt(amt) {
     return amt
 }
 
+function fName_recognize(fName) {
+    if (fName.substring(0,8)=="Registru") {
+        return {LE_Code: "A2643", fileType: "GL"}
+    } else if (fName.substring(0,27)=="UCTAM - Einzelnachweis KORE") {
+        return {LE_Code: "A2588", fileType: "GL"}
+    } else if (fName.substring(0,18)=="Uctam_KPMG_Pregled") {
+        return {LE_Code: "RS", fileType: "GL"}
+    } else if (fName.substring(0,22)=="Cost monitoring by CEE") {
+        return {LE_Code: "HU", fileType: "GL"}
+    } else if (fName.substring(0,14)=="General ledger") {
+        return {LE_Code: "A3234", fileType: "GL"}
+    } else if (fName.substring(0,9)=="UCM_Deník") {
+        return {LE_Code: "A2769", fileType: "GL"}
+    } else if (fName.substring(0,16)=="UCTAMSVK_Journal") {
+        return {LE_Code: "A3163", fileType: "GL"}
+    } else if (fName.substring(0,17)=="Detalji knjiženja") {
+        return {LE_Code: "A3214", fileType: "GL"}
+    } else if (fName.substring(0,4).toLowerCase()=="mis ") {
+        return {LE_Code: "A2736", fileType: "GL"}
+    } else if (fName.toLowerCase().includes("uctam report")) {
+        return {LE_Code: "A2572", fileType: "GL"}
+    } else if (fName.substring(0,9)=="Expenses ") {
+        return {LE_Code: "A2604", fileType: "GL"}
+    } else {
+        return {LE_Code: null, fileType: "SST"}
+    }
+}
+
+module.exports = {
+    import_gl: import_gl,
+    fName_recognize: fName_recognize
+}
+/*
+console.log(fName_recognize("Mis 07.2019_sent.xlsx"))
+console.log(fName_recognize("Detalji knjiženja_glavna knjiga-01.01.-31.07."))
+console.log(fName_recognize("UCM_Deník_3172019"))
+console.log(fName_recognize("UCTAMSVK_Journal_01-07_2019"))
+console.log(fName_recognize("General ledger 07-2019"))
+console.log(fName_recognize("Cost monitoring by CEE _31072019"))
+console.log(fName_recognize("Registru jurnal UCTAM 07-2019"))
+console.log(fName_recognize("07 UCTAM report Jul 2019 (management)"))
+console.log(fName_recognize("Uctam_KPMG_Pregled prihoda i rashoda 07.2019"))
+console.log(fName_recognize("UCTAM - Einzelnachweis KORE_07.2019"))
+console.log(fName_recognize("Expenses 01012019-31072019"))
+*/

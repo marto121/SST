@@ -482,7 +482,7 @@ app.post('/fileUpload', (req, res) => {
 });
 
 function toHTML(innerHTML) {
-  var out = "<html><head><title>UCTAM SST</title><link rel=\"stylesheet\" href=\"/css/sst.css\"></head><body>"
+  var out = "<!DOCTYPE html><html lang=\"en\"><head><title>UCTAM SST</title><META http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><link rel=\"stylesheet\" href=\"/css/sst.css\"></head><body>"
   out += innerHTML
   out += "</body></html>"
   return out

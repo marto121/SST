@@ -59,6 +59,11 @@ async function end() {
       })
 }
 
+function dbDate(date) {
+    var tzoffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime()-tzoffset).toISOString().split("T")[0]
+}
+
 module.exports = {
   query: query,
   log: log,
@@ -67,5 +72,6 @@ module.exports = {
   confirmMessage: confirmMessage,
   performFX: performFX,
   changeMailStatus: changeMailStatus,
+  dbDate: dbDate,
   end: end
 }

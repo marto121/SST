@@ -10,6 +10,7 @@ var sstApp = function() {
     const constants = require('./constants');
     var reports = require('./reports');
     const db = require('./db');
+    const import_gl = require('./import_gl');
     const fs = require('fs');
 
     async function checkMail() {
@@ -150,11 +151,20 @@ var sstApp = function() {
         for (const row of res.rows) {
             var fileName = row.filename;
             db.log("processFiles", "Start processing fileName " + fileName, constants.tLog, row.m_id)
-            const parseResult = await ep.parseExcel(fileName, row.m_id)
+            var parseResult = {}
+            if (row.filetype="GL") {
+                parseResult = await import_gl.import_gl(fileName, row.reple, row.m_id)
+            } else {
+                parseResult = await ep.parseExcel(fileName, row.m_id)
+            }
             db.log("processFiles", "End processing fileName " + fileName, constants.tLog, row.m_id)
             try {
                 await db.query("update file_log set fileStatus=$1, repLE=$2, repDate=$3 where id = $4", [parseResult.toStatus, parseResult.Rep_LE, parseResult.Rep_Date, row.id])
-                await db.query("update submission_monitoring set submission_m_id=ml.id, submission_date=now(), submission_user=ml.sender from file_log fl join mail_log ml on ml.id=fl.m_id join legal_entities le on le.tagetik_code=fl.repLE where fl.id=$1 and le_id=le.id and fl.repDate=Rep_Date",[row.id])
+                if (row.filetype="GL") {
+                    await db.query("update submission_monitoring set gl_m_id=ml.id, gl_date=now(), gl_user=ml.sender from file_log fl join mail_log ml on ml.id=fl.m_id join legal_entities le on le.tagetik_code=fl.repLE where fl.id=$1 and le_id=le.id and fl.repDate=Rep_Date",[row.id])
+                } else {
+                    await db.query("update submission_monitoring set submission_m_id=ml.id, submission_date=now(), submission_user=ml.sender from file_log fl join mail_log ml on ml.id=fl.m_id join legal_entities le on le.tagetik_code=fl.repLE where fl.id=$1 and le_id=le.id and fl.repDate=Rep_Date",[row.id])
+                }
                 result ++;
             } catch (e) {
                 db.log("processFiles", "Error updating file_log!"+e.toString(), constants.tSys, row.m_id);

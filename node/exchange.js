@@ -8,6 +8,7 @@ const fs = require('fs');
 const db = require('./db');
 const constants = require('./constants');
 const striptags = require('striptags');
+const import_gl = require('./import_gl');
 
 const ewsSoapHeader = {
     't:RequestServerVersion': {
@@ -464,9 +465,12 @@ async function checkMail() {
                         for (att of pAttResult.result) {
                             var fStatus = constants.statusReceived
                             const targetFileName =  utils.pad(m_ID, 4) + "_" + att.Result.fileName;
+                            var NPE_Code = "";
+                            var LE_Code = null;
+                            var Rep_Date = null
                             if (att.Result.fileName.substring(0,3).toLowerCase()=="bc_"||att.Result.fileName.substring(0,3).toLowerCase()=="ec_") {
                                 var fileType = att.Result.fileName.substring(0,3).toUpperCase()
-                                var NPE_Code = att.Result.fileName.substring(3,11)
+                                NPE_Code = att.Result.fileName.substring(3,11)
                                 const rsNPE = await db.query("select ID from NPE_List where m_ID=-1 and NPE_Code=$1",[NPE_Code])
                                 if (rsNPE.rowCount==0) {
                                     db.log("processMail", "Attachment " + att.Result.fileName + " looks like a " + fileType.substring(0,2) + ", but the NPE_Code is not recognized. Please name the file \'" + fileType + "_[NPE_Code]\'.", constants.tWar, m_ID)
@@ -476,8 +480,32 @@ async function checkMail() {
                                 }
                                 fStatus = constants.statusProcessed
                             } else if (att.Result.fileName.split('.').pop().toLowerCase().substring(0,2) == "xl"){
-                                fileType = "SST"
-                                NPE_Code = ""
+                                if (att.Result.fileName.substring(0,3).toLowerCase()=="gl_") {
+                                    // GL_%TAGETIK_CODE%_YYYYMM
+                                    fileType = "GL"
+                                    LE_Code = att.Result.fileName.split("_")[1]
+                                    Rep_Date = att.Result.fileName.split("_")[2].substring(0,6)
+                                    if (!isNaN(parseInt(Rep_Date))) {
+                                        Rep_Date = new Date(parseInt(Rep_Date.substring(0,4)),parseInt(Rep_Date.substring(4,6)),0)
+                                        if (isNaN(Rep_Date.getTime())) {
+                                            Rep_Date = null
+                                        } else {
+                                            db.log("processMail", "Recognized GL Attachment \"" + att.Result.fileName + "\" for LE [" + LE_Code + "] and period + " + Rep_Date.getFullYear()+'-'+(Rep_Date.getMonth()+1)+'-'+Rep_Date.getDate(), constants.tLog, m_ID)
+                                        }
+                                    } else {
+                                        Rep_Date = null
+                                    }
+                                    if (!Rep_Date) {
+                                        db.log("processMail", "Incompliant GL attachment name: " + att.Result.fileName + ". Format should be GL_[Tagetik code]_[YYYYMM]...", constants.tWar, m_ID)
+                                    }
+                                } else {
+                                    var fileRec = import_gl.fName_recognize(att.Result.fileName)
+                                    fileType = fileRec.fileType
+                                    LE_Code = fileRec.LE_Code
+                                    if (fileType="GL") {
+                                        db.log("processMail", "Recognized GL Attachment " + att.Result.fileName + " for LE [" + LE_Code + "]." , constants.tLog, m_ID)
+                                    }
+                                }
                             } else {
                                 const fileExt = att.Result.fileName.split('.').pop().toLowerCase();
                                 // Disregard pics
@@ -487,7 +515,7 @@ async function checkMail() {
                             }
                             try {
                                 fs.writeFileSync(config.SST_Att_Path + "\\" + targetFileName, att.Result.fileContent,'base64');
-                                res = await db.query("insert into file_log (m_ID, fileName, filestatus, fileType, NPE_ID) values ($1, $2, $3, $4, $5)", [m_ID, config.SST_Att_Path + "\\" + targetFileName, fStatus, fileType, NPE_Code])
+                                res = await db.query("insert into file_log (m_ID, fileName, filestatus, reple, repdate, fileType, NPE_ID) values ($1, $2, $3, $4, $5, $6, $7)", [m_ID, config.SST_Att_Path + "\\" + targetFileName, fStatus, LE_Code, Rep_Date, fileType, NPE_Code])
                             } catch (e) {
                                 db.log("checkMail", "Error saving file " + config.SST_Att_Path + "\\" + targetFileName + ": " + e.message, constants.tWar, m_ID)
                             }
@@ -556,7 +584,7 @@ async function sendMails(mails) {
         }
         if (drafts.length>0) {
             try {
-                var sendResult = await ewsCall("sendMessages", {itemList: drafts})
+                var sendResult = null //await ewsCall("sendMessages", {itemList: drafts})
                 debug (JSON.stringify(sendResult))
             } catch(e) {
                 debug ("error sending messages: " + e)

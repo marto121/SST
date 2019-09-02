@@ -157,6 +157,7 @@ async function prepareAnswer(m_ID) {
 async function createReminders(m_ID) {
     try {
         // Reporting dates
+        const repDate = await db.query("select * from plan_month();")
         const rsDates = await db.query("select to_char(Rep_Date,'DD.MM.YYYY') rep_date, to_char(Send_Date,'DD.MM.YYYY') send_date, to_char(Confirm_Date,'DD.MM.YYYY') confirm_date from calendar inner join lastdate on lastdate.currmonth=calendar.Rep_Date")
         if(rsDates.rowCount>0) {
             try {
@@ -186,7 +187,7 @@ async function createReminders(m_ID) {
                             mqBody += "<p>In the attached file you may find the monthly SST Template for "
                             mqBody += rLE.tagetik_code + ":(" + rLE.mis_code + ") " + rLE.le_name 
                             mqBody += " as of " + rsDates.rows[0].rep_date + "."
-                            mqBody += "<p>Please make sure that the template is prepared and sent back to the SST not later than <b>" + rsDates.rows[0].send_date + "</b>."
+                            mqBody += "<p>Please make sure that the template <U>as well as the monthly cost monitoring file</U> is prepared and sent back to the SST not later than <b>" + rsDates.rows[0].send_date + "</b>."
                             mqBody += "<p>Deadline for final confirmation by the CM is <b>" + rsDates.rows[0].confirm_date + "</b>."
                             mqBody += "<p>Regards, SST"
                             var mqSubject = "SST Due Dates for UCTAM " + rLE.mis_code + " for " + rsDates.rows[0].rep_date
