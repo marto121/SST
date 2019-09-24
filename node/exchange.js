@@ -81,14 +81,14 @@ const requests = {
                 },
             }
          
-            result["Restriction"] = {
+            /*result["Restriction"] = {
                 "t:And": {
                     "t:IsEqualTo" : {
                         "t:FieldURI" : { "attributes" : {"FieldURI":"message:IsRead"} },
                         "t:FieldURIOrConstant" : {"t:Constant" : { "attributes" : {"Value":"false"} }  }
                     },
                  }
-            }
+            }*/ // process only unread mails
              
             result["ParentFolderIds"] = {
                 "FolderId": {
@@ -129,6 +129,14 @@ const requests = {
                             { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "X-MS-Exchange-Organization-AuthAs"}},
                             { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "X-Proofpoint-SPF-Result"}},
                             { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "Authentication-Results"}},
+                            { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "Auto-submitted"}},
+                            { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "X-Auto-Response-Suppress"}},
+                            { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "List-Id"}},
+                            { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "List-Unsubscribe"}},
+                            { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "Feedback-ID"}},
+                            { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "Precedence"}},
+                            { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "X-Autoreply"}},
+                            { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "X-Autorespond"}},
                         ]
                     }
                 },
@@ -453,6 +461,10 @@ async function checkMail() {
                 if (res.rowCount)
                     authStatus = 1
     //                await db.query("BEGIN")
+                if (isAutoReply(msg.Result.Headers)) {
+                    await db.log("checkMail", "Autoreply message from: " + msg.Result.Sender + " with subject: " + msg.Result.Subject + " ignored.", constants.tLog, -1)
+                    continue
+                }
                 try {
                     res = await db.query("insert into mail_log (sender, receiver, subject, body, mailstatus, authStatus) values ($1, $2, $3, $4, $5, $6) returning id", [msg.Result.Sender.toLowerCase(), msg.Result.Recipients.toLowerCase(), msg.Result.Subject, msg.Result.Body, constants.statusReceived, authStatus])
                     var m_ID = -1
@@ -467,9 +479,10 @@ async function checkMail() {
                             const targetFileName =  utils.pad(m_ID, 4) + "_" + att.Result.fileName;
                             var NPE_Code = "";
                             var LE_Code = null;
-                            var Rep_Date = null
+                            var Rep_Date = null;
+                            var fileType = null;
                             if (att.Result.fileName.substring(0,3).toLowerCase()=="bc_"||att.Result.fileName.substring(0,3).toLowerCase()=="ec_") {
-                                var fileType = att.Result.fileName.substring(0,3).toUpperCase()
+                                fileType = att.Result.fileName.substring(0,3).toUpperCase()
                                 NPE_Code = att.Result.fileName.substring(3,11)
                                 const rsNPE = await db.query("select ID from NPE_List where m_ID=-1 and NPE_Code=$1",[NPE_Code])
                                 if (rsNPE.rowCount==0) {
@@ -502,8 +515,8 @@ async function checkMail() {
                                     var fileRec = import_gl.fName_recognize(att.Result.fileName)
                                     fileType = fileRec.fileType
                                     LE_Code = fileRec.LE_Code
-                                    if (fileType="GL") {
-                                        db.log("processMail", "Recognized GL Attachment " + att.Result.fileName + " for LE [" + LE_Code + "]." , constants.tLog, m_ID)
+                                    if (fileType == "GL") {
+                                        db.log("processMail", "Recognized GL Attachment [" + att.Result.fileName + "] for LE [" + LE_Code + "]." , constants.tLog, m_ID)
                                     }
                                 }
                             } else {
@@ -584,7 +597,7 @@ async function sendMails(mails) {
         }
         if (drafts.length>0) {
             try {
-                var sendResult = null //await ewsCall("sendMessages", {itemList: drafts})
+                var sendResult = await ewsCall("sendMessages", {itemList: drafts})
                 debug (JSON.stringify(sendResult))
             } catch(e) {
                 debug ("error sending messages: " + e)
@@ -611,6 +624,28 @@ function getSpoofResult(headers) {
             }
         }
     }
+    return mSpoofResult;
+}
+
+function isAutoReply(headers) {
+    if (!headers) return false
+    var h = headers['Auto-submitted']
+    if (h&&h!='no') return true
+    h = headers['X-Auto-Response-Suppress']
+    if ( h && ( (h.indexOf("DR")!=-1)|| (h.indexOf("All")!=-1) || (h.indexOf("AutoReply")!=0) )  ) return true
+    h = headers['List-Id']
+    if (h) return true
+    h = headers['List-Unsubscribe']
+    if (h) return true
+    h = headers['Feedback-ID']
+    if (h) return true
+    h = headers['Precedence']
+    if ( h && ( (h.toLowerCase()=="bulk")|| (h.toLowerCase()=="auto_reply") || (h.toLowerCase()=="list") )  ) return true
+    h = headers['X-Autoreply']
+    if (h) return true
+    h = headers['X-Autorespond']
+    if (h) return true
+    return false
 }
 
 // exchange server connection info

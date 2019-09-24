@@ -60,6 +60,8 @@ async function end() {
 }
 
 function dbDate(date) {
+    //console.log(date)
+    if (!(date instanceof Date)||isNaN(date)) return null
     var tzoffset = date.getTimezoneOffset() * 60000;
     return new Date(date.getTime()-tzoffset).toISOString().split("T")[0]
 }

@@ -63,7 +63,13 @@ app.get('/reports/:queryName', function (req, res, next) {
   console.log(req.params)
   console.log(req.headers["accept-language"] )
   var lang = req.headers["accept-language"]
-  db.query("select * from rep_" + req.params.queryName + " where le_id in (select le_id from users where username=\'"+ req.connection.user  +"\')").then(rs=> {
+  var filter = ""
+  Object.keys(req.query).forEach(function(key,index) {
+    filter += " and cast(\"" + key + "\" as varchar) like '" + req.query[key] + "'"
+  })
+  console.log(filter)
+  db.query("select * from rep_" + req.params.queryName + " where (le_id=-1 or le_id in (select le_id from users where username=\'"+ req.connection.user  +"\'))" + filter).then(rs=> {
+//  db.query("select * from rep_" + req.params.queryName + " where le_id in (select le_id from users where username=\'"+ req.connection.user  +"\')").then(rs=> {
       var t = "<table><tr>"
       rs.fields.forEach(function(Field) {if(Field.name!="le_id")t+= "<th>"+Field.name+"</th>"})
       t += '</tr>'

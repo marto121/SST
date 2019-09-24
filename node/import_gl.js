@@ -19,6 +19,7 @@ const parseOpts = {
     RS: {shNames: function() {return [{name: 'APD'},{name: 'Uctam'}]}, dateFunc: getDate_RS, parseFunc: parseRow_RS, entityFunc: getEntity_RS}, //RS
     A2604: {shNames: function() {return [{name: 'TDSheet'}]}, dateFunc: getDate_A2604, parseFunc: parseRow_A2604}, //RU
 }
+//import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201908\\HU\\Cost monitoring by CEE_entire general ledger _31082019.xlsx","HU",1386)
 /*import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\SI\\UCTAM - Einzelnachweis KORE_07.2019.xlsb","A2588",-1)
 import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201901-02\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 01.2019.xlsx","RS",-1)
 import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201901-02\\RS\\Uctam_KPMG_Pregled prihoda i rashoda 02.2019.xlsx","RS",-1)
@@ -57,11 +58,16 @@ import_gl("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_02.2018 V4.
 import_gl("I:\\UCTAM_CFO\\COUNTRIES\\SI\\UCTAM - Einzelnachweis KORE_01.2018 V4.xlsb","A2588",-1)
 */
 //import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\RU\\Expenses 01012019-31072019.xls","A2604")
+//import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201908\\RU\\Expenses 01012019-31082019.xls","A2604",1401)
+//import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201908\\LV\\08 UCTAM report Aug 2019 (management).xlsx","A2572",1403)
+//.then(res=>{console.log(res)})
 async function import_gl(fName, LE, m_ID) {
     //{toStatus, Rep_LE, Rep_Date}
-    const chkRights = await db.query("select * from vw_LE_Sender where Tagetik_Code=$1 and id=$2",[LE, m_ID])
+    var LE_Rights = LE
+    if(parseOpts[LE]&&parseOpts[LE].entityFunc) LE_Rights = parseOpts[LE].entityFunc()
+    const chkRights = await db.query("select * from vw_LE_Sender where Tagetik_Code=$1 and id=$2",[LE_Rights, m_ID])
     if (chkRights.rows==0) {
-        db.log ("import_gl", "You are not allowed to work with Legal Entity " + LE + ". Processing stopped.", constants.tErr, m_ID)
+        db.log ("import_gl", "You are not allowed to work with Legal Entity " + LE_Rights + ". Processing stopped.", constants.tErr, m_ID)
         return {toStatus: constants.statusRejected, Rep_LE: LE, Rep_Date: null}
     }
 if (!parseOpts[LE]) {
@@ -76,8 +82,8 @@ if (!parseOpts[LE]) {
             await XLSX.writeFile(workbook, fName);
         } catch (e) {
             //console.log(e)
-            db.log ("import_gl", "Error parsing excel file \":" + fName + "\". The error is " + e.toString(),  constants.tSys, m_ID)
-            return result;
+            db.log ("import_gl", "Error parsing excel file: \"" + fName + "\". The error is " + e.toString(),  constants.tSys, m_ID)
+            return {toStatus: constants.statusRejected, Rep_LE: LE, Rep_Date: null};
         }
     }
     var wb = new Excel.Workbook();
@@ -104,7 +110,7 @@ if (!parseOpts[LE]) {
         { header:'LE_Code', key:'LE_Code' },
         { header:'debug', key:'debug'}
     ]*/
-    var insert_sql = "INSERT INTO public.gl_data(/*id,*/ subasset, docdate, bookdate, docnom, countname, countid, accno, opType, /*accnoct, accnodt, */accname, docref, ccy, amtccy, fx, amtfx, doctext, le_code, debug) values "
+    var insert_sql = "INSERT INTO public.gl_data(/*id,*/ subasset, docdate, bookdate, docnom, countname, countid, accno, opType, /*accnoct, accnodt, */accname, docref, ccy, amtccy, fx, amtfx, doctext, le_code, debug, m_id) values "
     //insert_sql+="VALUES (/*?,*/ $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18);"
     try {
         await wb.xlsx.readFile(fName)
@@ -114,9 +120,10 @@ if (!parseOpts[LE]) {
         var shNames = parseOpts[LE].shNames(wb)
         var sh=wb.getWorksheet(shNames[0].name);
 
-        if (!sh) throw new Error("Sheet with name " + shNames[0] + " not found.")
+        if (!sh) throw new Error("Sheet with name " + shNames[0].name + " not found.")
     
-        const Rep_Date = parseOpts[LE].dateFunc(sh)
+        var Rep_Date = parseOpts[LE].dateFunc(sh)
+        if (isNaN(Rep_Date.startDate)) Rep_Date.startDate = null;
         //console.log(LE + ": " + JSON.stringify(Rep_Date))
         
         var LE_Code = LE
@@ -153,8 +160,8 @@ if (!parseOpts[LE]) {
                             //shOut.addRow(row)
                             values += "("
                             values += ((row.subAsset) ? "'"+row.subAsset+"'": "null")+","
-                            values += ((row.docDate) ? "'"+db.dbDate(row.docDate).split("T")[0]+"'": "null")+","
-                            values += ((row.bookDate) ? "'"+db.dbDate(row.bookDate).split("T")[0]+"'": "null")+","
+                            values += ((row.docDate) ? "'"+db.dbDate(row.docDate)/*.split("T")[0]*/+"'": "null")+","
+                            values += ((row.bookDate) ? "'"+db.dbDate(row.bookDate)/*.split("T")[0]*/+"'": "null")+","
                             values += ((row.docNom) ? "'"+row.docNom+"'": "null")+","
                             values += ((row.countName) ? "'"+row.countName.replace("'","''")+"'": "null")+","
                             values += ((row.countID) ? "'"+row.countID+"'": "null")+","
@@ -170,7 +177,8 @@ if (!parseOpts[LE]) {
                             values += ((row.amtFX) ? "'"+row.amtFX+"'": "null")+","
                             values += ((row.docText) ? "'"+row.docText.replace("'","''")+"'": "null")+","
                             values += ((row.LE_Code) ? "'"+row.LE_Code+"'": "null")+","
-                            values += "null)"
+                            values += "null,"
+                            values += m_ID + ")"
                             valuesCount ++
                             if ((valuesCount%100)==0) {
                                 //console.log(insert_sql+values)
@@ -195,24 +203,24 @@ if (!parseOpts[LE]) {
                 }
             } catch (e) {
 //                console.log(fName, rowNum, LE, Rep_Date, rows, e.toString())
-                db.log ("import_gl", "Error parsing excel file:\"" + fName + "\" at row " +rowNum + ". The error is " + e.toString(),  constants.tErr, m_ID)
+                db.log ("import_gl", "Error parsing excel file: \"" + fName + "\" at row " +rowNum + ". The error is " + e.toString(),  constants.tErr, m_ID)
                 break
             }
         }
-        console.log("Loaded "+fName)
-        db.log ("import_gl", "Successfully imported GL file\":" + fName + "\".",  constants.tLog, m_ID)
+        console.log("Loaded "+fName + " for LE " + LE + " for date " + Rep_Date.endDate)
+        db.log ("import_gl", "Successfully imported GL file: \"" + fName + "\".",  constants.tLog, m_ID)
         return {toStatus: constants.statusProcessed, Rep_LE: LE, Rep_Date: Rep_Date.endDate}
         wbOut.xlsx.writeFile("C:\\Temp\\" + LE + ".xlsx")
     } catch(e) {
-        db.log ("import_gl", "Error parsing excel file\":" + fName + "\". The error is " + e.toString(),  constants.tSys, m_ID)
+        db.log ("import_gl", "Error parsing excel file: \"" + fName + "\". The error is " + e.toString(),  constants.tSys, m_ID)
         console.log(e)
     }
 }
 
 /* Baltics */
 function getDate_A2572(sh) {
-    var month = sh.workbook.name.split("\\").pop().substring(0,2);
-    var year = sh.workbook.name.split("\\").pop().substring(20,24);
+    var month = sh.workbook.name.split("\\").pop().split("_").pop().substring(0,2);
+    var year = sh.workbook.name.split("\\").pop().split("_").pop().substring(20,24);
     var dt = new Date(parseInt(year),parseInt(month),0);
     return {startDate:new Date(2010,0,1), endDate: dt};
 }
@@ -232,14 +240,16 @@ function parseRow_A2572(row) {
             res.docNom = row.getCell(3+offset).value
             //res.countName = row.getCell(12).value
             //res.countID = row.getCell(10).value
-            res.accNo = row.getCell(2).value.split("/")[0].trim()
+            res.accNo = row.getCell(2).value
+            if (isString(res.accNo)) res.accNo = res.accNo.split("/")[0].trim()
             if (offset) res.accNo += "." + getAmt(row.getCell(3).value).substring(0,1)
             if (amt>0) {
                 res.opType = "DT"
             } else {
                 res.opType = "CT"
             }
-            res.accName = row.getCell(2).value.split("/").pop().trim()
+            res.accName = row.getCell(2).value
+            if (isString(res.accName)) res.accName = res.accName.split("/").pop().trim()
             res.docRef = row.getCell(7+offset).value
             res.CCY = 'EUR'
             res.amtCCY = amt
@@ -283,7 +293,7 @@ function parseRow_A2736(row) {
         res.accName = row.getCell(11).value
         res.docRef = row.getCell(12).value
         res.CCY= row.getCell(14).value
-        res.amtCCY = Math.abs(amt)
+        res.amtCCY = amt
         res.FX = 'EUR'
         res.amtFX = res.amtCCY/1.95583
         return [res]
@@ -336,7 +346,10 @@ function parseRow_A3214(row) {
 
 /* UCTAM CZ */
 function getSheets_A2769(wb) {
-    return [{name: wb.name.split("\\").pop().split(".")[0]}]
+    var wbName = wb.name.split("\\").pop().split(".")[0]
+    if (wbName.substring(0,3)!="UCM")
+        wbName = "UCM" + wbName.split("UCM")[1];
+    return [{name: wbName}]
 }
 function getDate_A2769(sh) {
 //UCM_Deník_3172019.xls
@@ -478,9 +491,14 @@ function parseRow_A2604(row) {
         //res.subAsset = row.getCell(17).value;
         //res.docDate = row.getCell(10).value;
         //res.bookDate = row.getCell(3).value; booking date
-        var dt = row.getCell(2).value.split("."); // value date
-
-        res.bookDate = new Date(parseInt(dt[2].substring(0,4)),parseInt(dt[1])-1, parseInt(dt[0]));
+        var dt = row.getCell(2).value
+        if (isString(dt)) {
+            dt = dt.split("."); // value date
+            res.bookDate = new Date(parseInt(dt[2].substring(0,4)),parseInt(dt[1])-1, parseInt(dt[0]));
+        } else if (dt instanceof Date && !isNaN(dt)) {
+            res.bookDate = dt
+            //console.log(dt)
+        }
         //res.docNom = row.getCell(7).value
         //res.countName = row.getCell(12).value
         //res.countID = row.getCell(11).value
@@ -523,10 +541,10 @@ function getSheets_HU(wb) {
 }
 
 function getEntity_HU(sh) {
-    if (sh.name.substring(0,4)=="EIFM") {
-        return "A765"
-    } else if (sh.name.substring(0,7)=="UCT HUN") {
+    if (!sh||sh.name.substring(0,7)=="UCT HUN") {
         return "A2917"
+    } else if (sh.name.substring(0,4)=="EIFM") {
+        return "A765"
     } else if (sh.name.substring(0,7)=="UCT RET") {
         return "A3176"
     } else {
@@ -535,7 +553,7 @@ function getEntity_HU(sh) {
 }
 function getDate_HU(sh) {
 //Cost monitoring by CEE _31072019.xlsx
-    var periodText = sh.getCell("B4").text
+    var periodText = sh.getCell("C4").text
     var startDate = new Date(parseInt(periodText.substring(0,4)), parseInt(periodText.substring(5,7))-1, parseInt(periodText.substring(8,10)))
     var endDate = new Date(parseInt(periodText.substring(16,20)), parseInt(periodText.substring(21,23))-1, parseInt(periodText.substring(24,26)))
     return {startDate: startDate, endDate: endDate};
@@ -545,40 +563,47 @@ function parseRow_HU(row, init) {
     if(row.number>6&&row.getCell(1).value) {
         var res = (init)?init:{}
         var res2 = {}
-        if(row.getCell(1).value!="" && row.getCell(9).value==null) {
-            res.accNo = row.getCell(1).value.split(",")[0].trim()
-            res.accName = row.getCell(1).value.split(",")[1].trim()
+        if(row.getCell(1).value!="" && row.getCell(10).value==null) {
+            res.accNo = getAmt(row.getCell(2).value)
+            if(isString(res.accNo)) res.accNo = res.accNo.split(",")[0].trim()
+            //console.log(res.accNo)
+            res.accName = getAmt(row.getCell(2).value)
+            if(isString(res.accName)) {
+                if(isString(res.accName.split(",")[1]))res.accName = res.accName.split(",")[1].trim()
+            }
             res.amtCCY = null
-        } else if (row.getCell(6).value) {
+        } else if (row.getCell(7).value) {
             //res.subAsset = row.getCell(17).value;
             //res.docDate = row.getCell(22).value;
-            res.bookDate = row.getCell(5).value;
+            res.bookDate = row.getCell(6).value;
             res.docNom = row.getCell(1).value
-            res.countName = row.getCell(2).value
+            res.countName = row.getCell(3).value
             //res.countID = row.getCell(18).value
-            if (row.getCell(9).value!=0) {
+            if (row.getCell(10).value!=0) {
                 res.opType = "DT"
             } else {
                 res.opType = "CT"
             }
-            res.docRef = row.getCell(4).text
+            res.docRef = row.getCell(5).text
             res.CCY = 'HUF'
-            res.amtCCY = getAmt(row.getCell(10).value)-getAmt(row.getCell(9).value)
+            res.amtCCY = getAmt(row.getCell(11).value)-getAmt(row.getCell(10).value)
 
     //        res.FX = row.getCell(13).value
     //        res.amtFX = row.getCell(14).value
-            res.docText = row.getCell(3).text
+            res.docText = row.getCell(4).text
             res2 = Object.assign({}, res)
-            res2.accNo = row.getCell(6).value
+            res2.accNo = row.getCell(7).value
+            res2.accName = ""
             if (res.opType=="CT") {
                 res2.opType = "DT"
             } else {
                 res2.opType = "CT"
             }
+            res2.amtCCY = -res2.amtCCY
         } else {
             res.amtCCY = null
         }
-        return [res, res2]
+        return [res/*, res2*/]
     } else {
         init.amtCCY = null
         return [init]
@@ -668,10 +693,10 @@ function parseRow_RS(row) {
 }
 
 function getEntity_RS(sh) {
-    if (sh.name=="APD") {
-        return "A2842"
-    } else if (sh.name=="Uctam") {
+    if (!sh||sh.name=="Uctam") {
         return "A2716"
+    } if (sh.name=="APD") {
+        return "A2842"
     } else {
         return "UNKNOWN"
     }
@@ -702,7 +727,8 @@ function parseRow_A2588(row, init, repDate) {
             } 
             if (!isNaN(row.getCell(8).value)&&!isNaN(row.getCell(14).value)) {
                 //res.docDate = row.getCell(22).value;
-                var dt = row.getCell(7).value.split("/")
+                var dt = row.getCell(7).value
+                if(isString(dt)) dt = dt.split("/")
                 res.bookDate = new Date(parseInt(dt[0]),parseInt(dt[1])-1, parseInt(dt[2]));
                 if (res.bookDate>repDate.endDate) res.bookDate=repDate.endDate
                 res.docNom = row.getCell(5).value
@@ -731,33 +757,42 @@ function getAmt(amt) {
     if (amt) {
         if (amt.sharedFormula||amt.formula) {amt = amt.result};
     } else {
-        amt=0
+        //amt=0
     }
     return amt
 }
 
 function fName_recognize(fName) {
-    if (fName.substring(0,8)=="Registru") {
+    fName=fName.toLowerCase()
+    if (fName.substring(0,8)=="registru") {
         return {LE_Code: "A2643", fileType: "GL"}
-    } else if (fName.substring(0,27)=="UCTAM - Einzelnachweis KORE") {
+    } else if (fName.substring(0,27)=="uctam - einzelnachweis kore") {
         return {LE_Code: "A2588", fileType: "GL"}
-    } else if (fName.substring(0,18)=="Uctam_KPMG_Pregled") {
+    } else if (fName.substring(0,18)=="uctam_kpmg_pregled") {
         return {LE_Code: "RS", fileType: "GL"}
-    } else if (fName.substring(0,22)=="Cost monitoring by CEE") {
+    } else if (fName.substring(0,15)=="uctam_kpmg_book") {
+        return {LE_Code: "RS", fileType: "BV"}
+    } else if (fName.substring(0,20)=="ambassador_kpmg_book") {
+        return {LE_Code: "RS", fileType: "BV"}
+    } else if (fName.substring(0,22)=="cost monitoring by cee") {
         return {LE_Code: "HU", fileType: "GL"}
-    } else if (fName.substring(0,14)=="General ledger") {
+    } else if ((fName.substring(0,14)=="general ledger")||(fName.substring(0,18)=="sst_general ledger")) {
         return {LE_Code: "A3234", fileType: "GL"}
-    } else if (fName.substring(0,9)=="UCM_Deník") {
+    } else if ((fName.substring(0,13)=="trial balance")||(fName.substring(0,17)=="sst_trial balance")) {
+        return {LE_Code: "A3234", fileType: "TB"}
+    } else if ((fName.substring(0,9)=="ucm_deník")||(fName.substring(0,18)=="ucm_general_ledger")) {
         return {LE_Code: "A2769", fileType: "GL"}
-    } else if (fName.substring(0,16)=="UCTAMSVK_Journal") {
+    } else if (fName.substring(0,16)=="uctamsvk_journal") {
         return {LE_Code: "A3163", fileType: "GL"}
-    } else if (fName.substring(0,17)=="Detalji knjiženja") {
+    } else if (fName.substring(0,17)=="detalji knjiženja") {
         return {LE_Code: "A3214", fileType: "GL"}
-    } else if (fName.substring(0,4).toLowerCase()=="mis ") {
+    } else if (fName.substring(0,13)=="kartice konta") {
+        return {LE_Code: "A3214", fileType: "TB"}
+    } else if (fName.substring(0,4)=="mis ") {
         return {LE_Code: "A2736", fileType: "GL"}
-    } else if (fName.toLowerCase().includes("uctam report")) {
+    } else if (fName.includes("uctam report")) {
         return {LE_Code: "A2572", fileType: "GL"}
-    } else if (fName.substring(0,9)=="Expenses ") {
+    } else if (fName.substring(0,9)=="expenses ") {
         return {LE_Code: "A2604", fileType: "GL"}
     } else {
         return {LE_Code: null, fileType: "SST"}
@@ -781,3 +816,10 @@ console.log(fName_recognize("Uctam_KPMG_Pregled prihoda i rashoda 07.2019"))
 console.log(fName_recognize("UCTAM - Einzelnachweis KORE_07.2019"))
 console.log(fName_recognize("Expenses 01012019-31072019"))
 */
+function isString(v) {
+    if(((typeof v) == "string") || (v instanceof String)) {
+        return true
+    } else {
+        return false
+    }
+}
