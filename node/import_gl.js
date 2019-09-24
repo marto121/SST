@@ -4,6 +4,10 @@ const Excel = require('exceljs')
 const XLSX = require('xlsx');
 const os = require("os")
 var constants = require('./constants');
+var config = require('./config');
+const Minizip = require('minizip-asm.js');
+var fs = require("fs");
+var path = require("path")
 
 const parseOpts = {
     A2588: {shNames: function() {return [{name: 'BMD KoRe'}]}, dateFunc: getDate_A2588, parseFunc: parseRow_A2588}, //Slovenia
@@ -74,15 +78,35 @@ if (!parseOpts[LE]) {
         db.log ("import_gl", "No definition found for reading GL of LE " + LE,  constants.tErr, m_ID)
         return {toStatus: constants.statusRejected, Rep_LE: LE, Rep_Date: null}
     }
-    if(fName.substring(fName.length-5).toLowerCase()=='.xlsb' || fName.substring(fName.length-4).toLowerCase()=='.xls') {
+    if(path.extname(fName).toLowerCase()=='.xlsb' || path.extname(fName).toLowerCase()=='.xls') {
         try {
             var workbook = await XLSX.readFile(fName,{cellDates:true, cellStyles:true, cellNF:true});
             if (!workbook) throw new Error("Unable to read workbook")
-            fName = os.tmpdir() + "\\" + fName.split("\\").pop() + '.xlsx'
+            fName = fName + '.xlsx'
             await XLSX.writeFile(workbook, fName);
         } catch (e) {
             //console.log(e)
             db.log ("import_gl", "Error parsing excel file: \"" + fName + "\". The error is " + e.toString(),  constants.tSys, m_ID)
+            return {toStatus: constants.statusRejected, Rep_LE: LE, Rep_Date: null};
+        }
+    } else if (path.extname(fName).toLowerCase()==".zip") {
+        db.log ("import_gl", "Zip file detected [" + fName + "]. Try to unzip.",  constants.tLog, m_ID)
+        try {
+            const zipped = fs.readFileSync(fName)
+            var mz = new Minizip(zipped)
+            const zipFiles = mz.list()
+            var options = {}
+            if (path.basename(fName).substring(0,4)=="KORE") {
+                if(zipFiles[0].filepath.split("/").pop().substring(0,27)!="uctam - einzelnachweis kore") {
+                    throw ("\"file [UCTAM - Einzelnachweis KORE] not found in ZIP!\"")
+                }
+                options.password = config.KORE_pass
+            }
+            const unzipped = mz.extract(zipFiles[0].filepath,options)
+            fName = path.join(path.dirname(fName),zipFiles[0].filepath.split("/").pop())
+            fs.writeFileSync(fName, unzipped)
+        } catch {
+            db.log ("import_gl", "Error unzipping file: [" + fName + "]. The error is " + e.toString(),  constants.tSys, m_ID)
             return {toStatus: constants.statusRejected, Rep_LE: LE, Rep_Date: null};
         }
     }
@@ -219,8 +243,8 @@ if (!parseOpts[LE]) {
 
 /* Baltics */
 function getDate_A2572(sh) {
-    var month = sh.workbook.name.split("\\").pop().split("_").pop().substring(0,2);
-    var year = sh.workbook.name.split("\\").pop().split("_").pop().substring(20,24);
+    var month = path.basename(sh.workbook.name).split("_").pop().substring(0,2);
+    var year = path.basename(sh.workbook.name).split("_").pop().substring(20,24);
     var dt = new Date(parseInt(year),parseInt(month),0);
     return {startDate:new Date(2010,0,1), endDate: dt};
 }
@@ -346,14 +370,14 @@ function parseRow_A3214(row) {
 
 /* UCTAM CZ */
 function getSheets_A2769(wb) {
-    var wbName = wb.name.split("\\").pop().split(".")[0]
+    var wbName = path.basename(wb.name).split(".")[0]
     if (wbName.substring(0,3)!="UCM")
         wbName = "UCM" + wbName.split("UCM")[1];
     return [{name: wbName}]
 }
 function getDate_A2769(sh) {
 //UCM_Deník_3172019.xls
-    var dText = sh.workbook.name.split("_").pop().split(".")[0]
+    var dText = path.basename(sh.workbook.name).split("_").pop().split(".")[0]
     var day = dText.substring(0,2)
     var month = dText.substring(2, 2 + dText.length-6)
     var year = dText.substring(dText.length-4)
@@ -766,7 +790,7 @@ function fName_recognize(fName) {
     fName=fName.toLowerCase()
     if (fName.substring(0,8)=="registru") {
         return {LE_Code: "A2643", fileType: "GL"}
-    } else if (fName.substring(0,27)=="uctam - einzelnachweis kore") {
+    } else if ((fName.substring(0,27)=="uctam - einzelnachweis kore"||fName.substring(0,4)=="KORE")) {
         return {LE_Code: "A2588", fileType: "GL"}
     } else if (fName.substring(0,18)=="uctam_kpmg_pregled") {
         return {LE_Code: "RS", fileType: "GL"}
