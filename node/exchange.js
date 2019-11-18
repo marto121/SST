@@ -137,6 +137,7 @@ const requests = {
                             { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "Precedence"}},
                             { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "X-Autoreply"}},
                             { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "X-Autorespond"}},
+                            { "attributes" : { "FieldURI" : "item:InternetMessageHeader", "FieldIndex" : "Return-Path"}},
                         ]
                     }
                 },
@@ -462,7 +463,7 @@ async function checkMail() {
                     authStatus = 1
     //                await db.query("BEGIN")
                 if (isAutoReply(msg.Result.Headers)) {
-                    await db.log("checkMail", "Autoreply message from: " + msg.Result.Sender + " with subject: " + msg.Result.Subject + " ignored.", constants.tLog, -1)
+                    await db.log("checkMail", "Automated message from: [" + msg.Result.Sender + "] with subject: [" + msg.Result.Subject + "] ignored.", constants.tLog, -1)
                     continue
                 }
                 try {
@@ -492,7 +493,7 @@ async function checkMail() {
                                     db.log("processMail", "Attachment: " + att.Result.fileName + " recognized as " + fileType.substring(0,2) + " for NPE_Code " + NPE_Code + " and stored.", constants.tWar, m_ID)
                                 }
                                 fStatus = constants.statusProcessed
-                            } else if (att.Result.fileName.split('.').pop().toLowerCase().substring(0,2) == "xl"){
+                            } else if ((att.Result.fileName.split('.').pop().toLowerCase().substring(0,2) == "xl")||(att.Result.fileName.split('.').pop().toLowerCase().substring(0,3) == "zip")){
                                 if (att.Result.fileName.substring(0,3).toLowerCase()=="gl_") {
                                     // GL_%TAGETIK_CODE%_YYYYMM
                                     fileType = "GL"
@@ -631,6 +632,8 @@ function isAutoReply(headers) {
     if (!headers) return false
     var h = headers['Auto-submitted']
     if (h&&h!='no') return true
+    h = headers['Return-Path']
+    if (h&&h.trim()=='<>') return true
     h = headers['X-Auto-Response-Suppress']
     if ( h && ( (h.indexOf("DR")!=-1)|| (h.indexOf("All")!=-1) || (h.indexOf("AutoReply")!=0) )  ) return true
     h = headers['List-Id']

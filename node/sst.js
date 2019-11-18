@@ -94,7 +94,15 @@ var sstApp = function() {
         try {
             const ml = await db.query("select authStatus, sender, subject, body from mail_log where id = $1", [m_ID])
             if (ml.rows[0].authstatus) {
-                if (ml.rows[0].body.substring(0,2).toLowerCase()=="ok") {
+                if (
+                    (ml.rows[0].body.substring(0,2).toLowerCase()=="ok")
+                    ||(ml.rows[0].body.substring(0,32).toLowerCase()=="unicredit group - public&nbsp;ok")
+                    ||(ml.rows[0].body.substring(0,43).toLowerCase()=="unicredit group - internal use only&nbsp;ok")
+                    ||(ml.rows[0].body.substring(0,44).toLowerCase()=="unicredit s.p.a. - internal use only&nbsp;ok")
+                    ||(ml.rows[0].body.substring(0,38).toLowerCase()=="unicredit group - confidential&nbsp;ok")
+                    ||(ml.rows[0].body.substring(0,39).toLowerCase()=="unicredit s.p.a. - confidential&nbsp;ok")
+                    ||(ml.rows[0].body.substring(0,47).toLowerCase()=="unicredit group - strictly confidential&nbsp;ok")
+                    ) {
                     var matches = ml.rows[0].subject.match(/\{(.*?)\}/);
                     var confirm_m_ID;
                     if (matches&&(confirm_m_ID=parseInt(matches[1]))&&!isNaN(confirm_m_ID)) {
@@ -153,7 +161,7 @@ var sstApp = function() {
             db.log("processFiles", "Start processing fileName " + fileName, constants.tLog, row.m_id)
             var parseResult = {}
             if (row.filetype == "GL") {
-                if(fileName.toLowerCase().includes(".xls")) {
+                if(fileName.toLowerCase().includes(".xls")||fileName.toLowerCase().includes(".zip")) {
                     parseResult = await import_gl.import_gl(fileName, row.reple, row.m_id)
                 } else {
                     db.log("processFiles", "Attached GL file " + fileName + " is not in .xls format. Skipping.", constants.tLog, row.m_id)

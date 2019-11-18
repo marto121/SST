@@ -1,8 +1,8 @@
 'use strict'
 const db = require('./db')
+const utils = require('./utils');
 const Excel = require('exceljs')
 const XLSX = require('xlsx');
-const os = require("os")
 var constants = require('./constants');
 var config = require('./config');
 const Minizip = require('minizip-asm.js');
@@ -13,15 +13,15 @@ const parseOpts = {
     A2588: {shNames: function() {return [{name: 'BMD KoRe'}]}, dateFunc: getDate_A2588, parseFunc: parseRow_A2588}, //Slovenia
 //    A3234: {shNames: function() {return ['TB 31.08.2018.']}, dateFunc: getDate_A3234, parseFunc: parseRow_A3234}, for trial balance
     A2572: {shNames: function() {return [{name: 'PL (without allocations) source'}, {name: 'Balance source', noDel: 1}]}, dateFunc: getDate_A2572, parseFunc: parseRow_A2572}, //Latvia
-    A2736: {shNames: function() {return [{name: 'MIS_2019'}]}, dateFunc: getDate_A2736, parseFunc: parseRow_A2736}, //Bulgaria
+    A2736: {shNames: getSheets_A2736, dateFunc: getDate_A2736, parseFunc: parseRow_A2736}, //Bulgaria
     A3214: {shNames: function() {return [{name: 'Sheet'}]}, dateFunc: getDate_A3214, parseFunc: parseRow_A3214}, //Bosnia
     A2769: {shNames: getSheets_A2769, dateFunc: getDate_A2769, parseFunc: parseRow_A2769}, //CZ
-    A3163: {shNames: function() {return [{name: 'Dennik'}]}, dateFunc: getDate_A3163, parseFunc: parseRow_A3163}, //SK
+    A3163: {shNames: getSheets_A3163, dateFunc: getDate_A3163, parseFunc: parseRow_A3163}, //SK
     A3234: {shNames: function() {return [{name: '4D Wand knjiženja'}]}, dateFunc: getDate_A3234, parseFunc: parseRow_A3234}, //HR
     HU   : {shNames: getSheets_HU,  dateFunc: getDate_HU, parseFunc: parseRow_HU, entityFunc: getEntity_HU}, //HU
     A2643: {shNames: function() {return [{name: 'Registrul jurnal'}]}, dateFunc: getDate_A2643, parseFunc: parseRow_A2643}, //RO
     RS: {shNames: function() {return [{name: 'APD'},{name: 'Uctam'}]}, dateFunc: getDate_RS, parseFunc: parseRow_RS, entityFunc: getEntity_RS}, //RS
-    A2604: {shNames: function() {return [{name: 'TDSheet'}]}, dateFunc: getDate_A2604, parseFunc: parseRow_A2604}, //RU
+    A2604: {shNames: function() {return [{name: 'GL'}]}, dateFunc: getDate_A2604, parseFunc: parseRow_A2604}, //RU
 }
 //import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201908\\HU\\Cost monitoring by CEE_entire general ledger _31082019.xlsx","HU",1386)
 /*import_gl("I:\\UCTAM_CFO\\CONTROLLING\\Cost Controlling\\2019\\201907\\SI\\UCTAM - Einzelnachweis KORE_07.2019.xlsb","A2588",-1)
@@ -78,6 +78,27 @@ if (!parseOpts[LE]) {
         db.log ("import_gl", "No definition found for reading GL of LE " + LE,  constants.tErr, m_ID)
         return {toStatus: constants.statusRejected, Rep_LE: LE, Rep_Date: null}
     }
+    if (path.extname(fName).toLowerCase()==".zip") {
+        db.log ("import_gl", "Zip file detected [" + fName + "]. Try to unzip.",  constants.tLog, m_ID)
+        try {
+            const zipped = fs.readFileSync(fName)
+            const mz = new Minizip(zipped)
+            const zipFiles = mz.list()
+            var options = {}
+            if (path.basename(fName).includes("KORE")) {
+                if(zipFiles[0].filepath.split("/").pop().substring(0,27)!="UCTAM - Einzelnachweis KORE") {
+                    throw ("\"file [UCTAM - Einzelnachweis KORE] not found in ZIP!\"")
+                }
+                options.password = config.KORE_pass
+            }
+            const unzipped = mz.extract(zipFiles[0].filepath,options)
+            fName = path.join(path.dirname(fName),utils.pad(m_ID, 4) + "_" + zipFiles[0].filepath.split("/").pop())
+            fs.writeFileSync(fName, unzipped)
+        } catch (e) {
+            db.log ("import_gl", "Error unzipping file: [" + fName + "]. The error is " + e.toString(),  constants.tSys, m_ID)
+            return {toStatus: constants.statusRejected, Rep_LE: LE, Rep_Date: null};
+        }
+    }
     if(path.extname(fName).toLowerCase()=='.xlsb' || path.extname(fName).toLowerCase()=='.xls') {
         try {
             var workbook = await XLSX.readFile(fName,{cellDates:true, cellStyles:true, cellNF:true});
@@ -89,27 +110,8 @@ if (!parseOpts[LE]) {
             db.log ("import_gl", "Error parsing excel file: \"" + fName + "\". The error is " + e.toString(),  constants.tSys, m_ID)
             return {toStatus: constants.statusRejected, Rep_LE: LE, Rep_Date: null};
         }
-    } else if (path.extname(fName).toLowerCase()==".zip") {
-        db.log ("import_gl", "Zip file detected [" + fName + "]. Try to unzip.",  constants.tLog, m_ID)
-        try {
-            const zipped = fs.readFileSync(fName)
-            var mz = new Minizip(zipped)
-            const zipFiles = mz.list()
-            var options = {}
-            if (path.basename(fName).substring(0,4)=="KORE") {
-                if(zipFiles[0].filepath.split("/").pop().substring(0,27)!="uctam - einzelnachweis kore") {
-                    throw ("\"file [UCTAM - Einzelnachweis KORE] not found in ZIP!\"")
-                }
-                options.password = config.KORE_pass
-            }
-            const unzipped = mz.extract(zipFiles[0].filepath,options)
-            fName = path.join(path.dirname(fName),zipFiles[0].filepath.split("/").pop())
-            fs.writeFileSync(fName, unzipped)
-        } catch {
-            db.log ("import_gl", "Error unzipping file: [" + fName + "]. The error is " + e.toString(),  constants.tSys, m_ID)
-            return {toStatus: constants.statusRejected, Rep_LE: LE, Rep_Date: null};
-        }
     }
+
     var wb = new Excel.Workbook();
 //    var wbOut = new Excel.Workbook();
 //    var shOut = wbOut.addWorksheet("Data")
@@ -237,7 +239,7 @@ if (!parseOpts[LE]) {
         wbOut.xlsx.writeFile("C:\\Temp\\" + LE + ".xlsx")
     } catch(e) {
         db.log ("import_gl", "Error parsing excel file: \"" + fName + "\". The error is " + e.toString(),  constants.tSys, m_ID)
-        console.log(e)
+        return {toStatus: constants.statusRejected, Rep_LE: LE, Rep_Date: null};
     }
 }
 
@@ -291,6 +293,16 @@ function parseRow_A2572(row) {
 }
 
 /* UCTAM Bulgaria */
+function getSheets_A2736(wb) {
+    var result = "Sheet starting with \"MIS\""
+    wb.eachSheet(function(worksheet, sheetId) {
+        if (worksheet.name.toLowerCase().substring(0,3)=="mis") {
+            result = worksheet.name;
+        }
+    });
+    return [{name: result}]
+}
+
 function getDate_A2736(sh) {
     var year = sh.getCell("P2");
     var month = sh.getCell("Q2")
@@ -415,10 +427,16 @@ function parseRow_A2769(row) {
 }
 
 /* UCTAM SVK */
+function getSheets_A3163(wb) {
+    return [{name: wb.getWorksheet(1).name}]
+}
+
 function getDate_A3163(sh) {
 //UCTAMSVK_Journal_01-07_2019.xlsx
-    var month = sh.workbook.name.substring(sh.workbook.name.length-12).substring(0,2);
-    var year = sh.workbook.name.substring(sh.workbook.name.length-9).substring(0,4);
+    var fName=path.basename(sh.workbook.name).split(".")[0]
+    console.log(fName)
+    var month = fName.substring(fName.length-7).substring(0,2);
+    var year = fName.substring(fName.length-4).substring(0,4);
     var dt = new Date(parseInt(year),parseInt(month),0);
     return {startDate:new Date(dt.getFullYear(),0,1), endDate: dt};
     return dt;
@@ -496,12 +514,13 @@ function parseRow_A3234(row) {
 /* UCTAM Russia */
 function getDate_A2604(sh) {
     //Expenses 01012019-31072019.xlsx
-    var sDay = sh.workbook.name.substring(sh.workbook.name.length-22-4).substring(0,2)
-    var sMonth = sh.workbook.name.substring(sh.workbook.name.length-20-4).substring(0,2);
-    var sYear = sh.workbook.name.substring(sh.workbook.name.length-18-4).substring(0,4);
-    var eDay = sh.workbook.name.substring(sh.workbook.name.length-13-4).substring(0,2)
-    var eMonth = sh.workbook.name.substring(sh.workbook.name.length-11-4).substring(0,2);
-    var eYear = sh.workbook.name.substring(sh.workbook.name.length-9-4).substring(0,4);
+    var pStart=sh.workbook.name.indexOf(".xls")
+    var sDay = sh.workbook.name.substring(pStart-17).substring(0,2)
+    var sMonth = sh.workbook.name.substring(pStart-15).substring(0,2);
+    var sYear = sh.workbook.name.substring(pStart-13).substring(0,4);
+    var eDay = sh.workbook.name.substring(pStart-8).substring(0,2)
+    var eMonth = sh.workbook.name.substring(pStart-6).substring(0,2);
+    var eYear = sh.workbook.name.substring(pStart-4).substring(0,4);
     var sdt = new Date(parseInt(sYear),parseInt(sMonth)-1,parseInt(sDay));
     var edt = new Date(parseInt(eYear),parseInt(eMonth)-1,parseInt(eDay));
     return {startDate: sdt, endDate: edt};
@@ -511,34 +530,46 @@ function getDate_A2604(sh) {
 function parseRow_A2604(row) {
     if(row.number>1&&row.getCell(1).value) {
         var res = {}
-        var amt = getAmt(row.getCell(13).value)
+        var amt = getAmt(row.getCell(12).value)
         //res.subAsset = row.getCell(17).value;
         //res.docDate = row.getCell(10).value;
         //res.bookDate = row.getCell(3).value; booking date
+        var dateText = ""
         var dt = row.getCell(2).value
         if (isString(dt)) {
+            dateText = row.getCell(2).value
             dt = dt.split("."); // value date
             res.bookDate = new Date(parseInt(dt[2].substring(0,4)),parseInt(dt[1])-1, parseInt(dt[0]));
         } else if (dt instanceof Date && !isNaN(dt)) {
+            dateText = dt.toISOString()
             res.bookDate = dt
             //console.log(dt)
         }
+        var doc = row.getCell(3).value
+        var docStart = doc.indexOf(" 0U")+1
+        if(docStart > 0) {
+            res.docNom = dateText + ":" + doc.substring(docStart, docStart+11) + ":" + row.getCell(1).value
+        } else {
+            res.docNom = dateText + ":" + row.number + ":" + row.getCell(1).value
+        }
+        if (res.docNom.length>50) console.log(res.docNom)
         //res.docNom = row.getCell(7).value
         //res.countName = row.getCell(12).value
         //res.countID = row.getCell(11).value
         res.opType = "DT"
-        res.accNo = row.getCell(5).value
-        res.accName = row.getCell(6).value + "~" + row.getCell(7).value + "~" + row.getCell(8).value
+        res.accNo = row.getCell(4).value
+        res.accName = row.getCell(5).value + "~" + row.getCell(6).value + "~" + row.getCell(7).value
         res.docRef = row.getCell(3).value
         res.CCY = 'RUB'
         res.amtCCY = - amt
 //        res.FX = getCCY(row.getCell(25).value)
 //        res.amtFX = -getAmt(row.getCell(29).value)
-        res.docText = row.getCell(14).value
+        res.docText = row.getCell(13).value
         var res2 = Object.assign({}, res)
-        res2.accNo = row.getCell(9).value
+        res2.accNo = row.getCell(8).value
         res2.opType = "CT"
-        res2.accName = row.getCell(10).value + "~" + row.getCell(11).value + "~" + row.getCell(12).value
+        res2.accName = row.getCell(9).value + "~" + row.getCell(10).value + "~" + row.getCell(11).value
+        res2.amtCCY = -res.amtCCY
     return [res, res2]
     } else {
         return []
@@ -788,9 +819,10 @@ function getAmt(amt) {
 
 function fName_recognize(fName) {
     fName=fName.toLowerCase()
+    console.log(fName)
     if (fName.substring(0,8)=="registru") {
         return {LE_Code: "A2643", fileType: "GL"}
-    } else if ((fName.substring(0,27)=="uctam - einzelnachweis kore"||fName.substring(0,4)=="KORE")) {
+    } else if ((fName.substring(0,27)=="uctam - einzelnachweis kore")||(fName.substring(0,4)=="kore")) {
         return {LE_Code: "A2588", fileType: "GL"}
     } else if (fName.substring(0,18)=="uctam_kpmg_pregled") {
         return {LE_Code: "RS", fileType: "GL"}
