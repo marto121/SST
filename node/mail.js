@@ -184,6 +184,7 @@ async function createReminders(m_ID) {
                         if (mqRecipients=="") {
                             db.log("createReminders", "No recipients found for LE " + rLE.tagetik_code + ":(" + rLE.mis_code + ") " + rLE.le_name, constants.tErr, m_ID)
                         } else {
+//                            mqBody += "<p>Happy New Year 2020! Let it bring Health and Happiness to you and your beloved ones!"
                             mqBody += "<p>In the attached file you may find the monthly SST Template for "
                             mqBody += rLE.tagetik_code + ":(" + rLE.mis_code + ") " + rLE.le_name 
                             mqBody += " as of " + rsDates.rows[0].rep_date + "."

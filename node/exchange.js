@@ -162,7 +162,7 @@ const requests = {
                 })
                 var mBody = striptags(msg.Body["$value"].trim().replace(/(\r\n|\n|\r)/gm,"")).substring(0,100)
                 var mAttachments = []
-                if(msg.Attachments) {
+                if(msg.Attachments&&msg.Attachments.FileAttachment) {
                     toArray(msg.Attachments.FileAttachment).forEach(function (att) {
                         mAttachments.push({"attributes":{"Id":att.AttachmentId.attributes.Id}})
                     })
@@ -446,8 +446,11 @@ async function checkMail_old() {
 
 async function checkMail() {
     try {
+        await db.log("checkMail", "Get Folders", constants.tLog, -1)
         var folderList = await ewsCall("getFolders")
+        await db.log("checkMail", "Check Mail", constants.tLog, -1)
         var msgList = await ewsCall("checkMail", {folderList: folderList})
+        await db.log("checkMail", "Checked Mail", constants.tLog, -1)
         if (msgList) {
             await db.log("checkMail", msgList.length + " unread message(s) found", constants.tLog, -1)
             var msgData = await ewsCall("processMessages", {itemList: msgList})
@@ -466,6 +469,12 @@ async function checkMail() {
                     await db.log("checkMail", "Automated message from: [" + msg.Result.Sender + "] with subject: [" + msg.Result.Subject + "] ignored.", constants.tLog, -1)
                     continue
                 }
+
+                if (msg.Result.Sender.toLowerCase().indexOf(config.mailbox.toLowerCase())>-1) {
+                    await db.log("checkMail", "Message from: [" + msg.Result.Sender + "] with subject: [" + msg.Result.Subject + "] ignored.", constants.tLog, -1)
+                    continue
+                }
+
                 try {
                     res = await db.query("insert into mail_log (sender, receiver, subject, body, mailstatus, authStatus) values ($1, $2, $3, $4, $5, $6) returning id", [msg.Result.Sender.toLowerCase(), msg.Result.Recipients.toLowerCase(), msg.Result.Subject, msg.Result.Body, constants.statusReceived, authStatus])
                     var m_ID = -1
