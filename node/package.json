@@ -10,7 +10,7 @@
     "express-fileupload": "^1.1.5",
     "fstream": "^1.0.12",
     "hoek": "^6.1.3",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.21",
     "minizip-asm.js": "^1.0.10",
     "node-adodb": "^4.0.7",
     "node-ews": "^3.2.4",
