@@ -13,7 +13,7 @@
     "lodash": "^4.17.15",
     "minizip-asm.js": "^1.0.10",
     "node-adodb": "^4.0.7",
-    "node-ews": "^3.2.4",
+    "node-ews": "^3.5.0",
     "node-sspi": "^0.2.2",
     "pg": "^7.4.3",
     "striptags": "^3.1.1",
